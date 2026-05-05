@@ -147,19 +147,6 @@ app.use((err, req, res, next) => {
 
 // Start server
 connectDB()
-  .then((db) => {
-    app.locals.db = db
-
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on port ${PORT}`)
-      console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`)
-    })
-  })
-  .catch((err) => {
-    console.error('❌ Database connection failed:', err)
-    process.exit(1)
-  })
-connectDB()
   .then(async (db) => {
     app.locals.db = db
 
@@ -171,4 +158,8 @@ connectDB()
       console.log(`🚀 Server running on port ${PORT}`)
       console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`)
     })
+  })
+  .catch((err) => {
+    console.error('❌ Database connection failed:', err)
+    process.exit(1)
   })
