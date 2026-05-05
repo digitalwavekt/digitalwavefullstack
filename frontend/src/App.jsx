@@ -5,6 +5,7 @@ import Navbar from './components/layout/Navbar'
 import Footer from './components/layout/Footer'
 import ScrollToTop from './components/layout/ScrollToTop'
 import LoadingScreen from './components/layout/LoadingScreen'
+import VerifyCertificate from './pages/VerifyCertificate'
 
 // Lazy load pages for performance
 const Home = lazy(() => import('./pages/Home'))
