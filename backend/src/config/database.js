@@ -11,7 +11,7 @@ export const connectDB = async () => {
       await mongoose.connect(process.env.MONGODB_URI)
       console.log('✅ MongoDB Connected')
       return { type: 'mongodb', connection: mongoose.connection }
-    } 
+    }
     else if (dbType === 'postgres' && process.env.POSTGRES_URL) {
       const pool = new Pool({ connectionString: process.env.POSTGRES_URL })
       await pool.query('SELECT NOW()')
@@ -19,7 +19,15 @@ export const connectDB = async () => {
       return { type: 'postgres', connection: pool }
     }
     else if (dbType === 'supabase' && process.env.SUPABASE_URL) {
-      const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+      if (!process.env.SUPABASE_SERVICE_KEY) {
+        throw new Error('SUPABASE_SERVICE_KEY is missing')
+      }
+
+      const supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_KEY
+      )
+
       console.log('✅ Supabase Connected')
       return { type: 'supabase', connection: supabase }
     }

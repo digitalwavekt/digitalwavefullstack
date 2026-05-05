@@ -26,11 +26,22 @@ const PORT = process.env.PORT || 5000
 
 // Security middleware
 app.use(helmet())
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  ...(process.env.FRONTEND_URLS ? process.env.FRONTEND_URLS.split(',') : []),
+  'http://localhost:5173',
+  'http://localhost:3000'
+].filter(Boolean)
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`))
+  },
   credentials: true
 }))
-
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -64,11 +75,11 @@ app.use('/api/settings', settingsRoutes)
 // Error handling
 app.use((err, req, res, next) => {
   console.error(err.stack)
-  res.status(500).json({ 
-    success: false, 
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Something went wrong!' 
-      : err.message 
+  res.status(500).json({
+    success: false,
+    message: process.env.NODE_ENV === 'production'
+      ? 'Something went wrong!'
+      : err.message
   })
 })
 
