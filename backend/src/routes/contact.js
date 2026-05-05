@@ -3,8 +3,6 @@ import nodemailer from 'nodemailer'
 
 const router = express.Router()
 
-let contacts = []
-
 const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -12,8 +10,8 @@ const createTransporter = () => {
     secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
+      pass: process.env.SMTP_PASS,
+    },
   })
 }
 
@@ -24,46 +22,63 @@ router.post('/', async (req, res) => {
     if (!name || !email || !subject || !message) {
       return res.status(400).json({
         success: false,
-        message: 'Name, email, subject and message are required'
+        message: 'Name, email, subject and message are required',
       })
     }
 
-    const contact = {
-      id: Date.now(),
-      name,
-      email,
-      phone,
-      subject,
-      message,
-      status: 'new',
-      createdAt: new Date()
-    }
+    const db = req.app.locals.db
+    const supabase = db?.connection
 
-    contacts.push(contact)
+    const { data: contact, error } = await supabase
+      .from('contacts')
+      .insert({
+        name,
+        email,
+        phone,
+        subject,
+        message,
+        status: 'new',
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Contact DB insert failed:', error)
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to save contact message',
+      })
+    }
 
     try {
-      const transporter = createTransporter()
+      if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        const transporter = createTransporter()
 
-      await transporter.sendMail({
-        from: `"${process.env.FROM_NAME || 'Digital Wave IT Solutions'}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
-        to: process.env.SMTP_USER,
-        replyTo: email,
-        subject: `New Contact Form Submission: ${subject}`,
-        html: `
-          <h2>New Contact Form Submission</h2>
-          <p><strong>Name:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
-          <p><strong>Subject:</strong> ${subject}</p>
-          <p><strong>Message:</strong></p>
-          <p>${message}</p>
-        `
-      })
+        await transporter.sendMail({
+          from: `"${process.env.FROM_NAME || 'Digital Wave IT Solutions'}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
+          to: process.env.SMTP_USER,
+          replyTo: email,
+          subject: `New Contact Form Submission: ${subject}`,
+          html: `
+            <h2>New Contact Form Submission</h2>
+            <p><strong>Name:</strong> ${name}</p>
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
+            <p><strong>Subject:</strong> ${subject}</p>
+            <p><strong>Message:</strong></p>
+            <p>${message}</p>
+          `,
+        })
+      }
     } catch (emailError) {
       console.error('Email sending failed:', emailError)
     }
 
-    res.json({ success: true, message: 'Message sent successfully' })
+    res.json({
+      success: true,
+      message: 'Message sent successfully',
+      data: contact,
+    })
   } catch (error) {
     console.error('Contact submission error:', error)
     res.status(500).json({ success: false, message: 'Failed to send message' })
@@ -72,7 +87,19 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    res.json({ success: true, data: contacts })
+    const db = req.app.locals.db
+    const supabase = db?.connection
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return res.status(500).json({ success: false, message: error.message })
+    }
+
+    res.json({ success: true, data })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch contacts' })
   }
@@ -83,15 +110,24 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params
     const { status } = req.body
 
-    const contact = contacts.find(c => c.id === parseInt(id))
-    if (!contact) {
-      return res.status(404).json({ success: false, message: 'Contact not found' })
+    const db = req.app.locals.db
+    const supabase = db?.connection
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      return res.status(500).json({ success: false, message: error.message })
     }
 
-    contact.status = status
-    contact.updatedAt = new Date()
-
-    res.json({ success: true, message: 'Status updated' })
+    res.json({ success: true, message: 'Status updated', data })
   } catch (error) {
     res.status(500).json({ success: false, message: 'Update failed' })
   }
