@@ -6,7 +6,6 @@ import morgan from 'morgan'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 
-
 // Route imports
 import authRoutes from './routes/auth.js'
 import studentRoutes from './routes/student.js'
@@ -35,7 +34,9 @@ app.use(
   })
 )
 
-// CORS configuration
+// ============================================
+// FIXED CORS CONFIGURATION
+// ============================================
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   ...(process.env.FRONTEND_URLS
@@ -43,13 +44,28 @@ const allowedOrigins = [
     : []),
   'http://localhost:5173',
   'http://localhost:3000',
+  'https://localhost:5173',
+  'https://localhost:3000',
+  // Add your deployed frontend URLs here
+  'https://digitalwaveitsolution.online',
+  'https://www.digitalwaveitsolution.online',
 ].filter(Boolean)
 
 console.log('✅ Allowed CORS Origins:', allowedOrigins)
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true)
+
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+
+    // For development - allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      console.log('⚠️ Development mode - allowing origin:', origin)
       return callback(null, true)
     }
 
@@ -58,13 +74,26 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400, // 24 hours
 }
 
+// Apply CORS to all routes
 app.use(cors(corsOptions))
+
+// Handle preflight requests for all routes
 app.options('*', cors(corsOptions))
 
-// Rate limiting
+// ============================================
+// RATE LIMITING
+// ============================================
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.RATE_LIMIT_MAX || 100),
@@ -89,12 +118,15 @@ if (process.env.NODE_ENV !== 'test') {
 
 app.use(compression())
 
-// Health check
+// ============================================
+// HEALTH CHECK
+// ============================================
 app.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'Digital Wave IT Solutions API is running',
     health: '/api/health',
+    cors: 'enabled',
   })
 })
 
@@ -104,10 +136,13 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
+    allowedOrigins: allowedOrigins,
   })
 })
 
-// API Routes
+// ============================================
+// API ROUTES
+// ============================================
 app.use('/api/auth', authRoutes)
 app.use('/api/student', studentRoutes)
 app.use('/api/payment', paymentRoutes)
@@ -117,7 +152,9 @@ app.use('/api/college-project', collegeProjectRoutes)
 app.use('/api/certificate', certificateRoutes)
 app.use('/api/settings', settingsRoutes)
 
-// 404 handler
+// ============================================
+// 404 HANDLER
+// ============================================
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -125,7 +162,9 @@ app.use((req, res) => {
   })
 })
 
-// Error handling
+// ============================================
+// ERROR HANDLING
+// ============================================
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err)
 
@@ -133,6 +172,8 @@ app.use((err, req, res, next) => {
     return res.status(403).json({
       success: false,
       message: err.message,
+      allowedOrigins: allowedOrigins,
+      yourOrigin: req.headers.origin || 'unknown',
     })
   }
 
@@ -145,7 +186,9 @@ app.use((err, req, res, next) => {
   })
 })
 
-// Start server
+// ============================================
+// START SERVER
+// ============================================
 connectDB()
   .then(async (db) => {
     app.locals.db = db
@@ -157,9 +200,12 @@ connectDB()
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server running on port ${PORT}`)
       console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`)
+      console.log(`🔒 CORS enabled for: ${allowedOrigins.join(', ')}`)
     })
   })
   .catch((err) => {
     console.error('❌ Database connection failed:', err)
     process.exit(1)
   })
+
+export default app
