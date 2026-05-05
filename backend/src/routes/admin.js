@@ -2,86 +2,174 @@ import express from 'express'
 
 const router = express.Router()
 
-// Mock data stores
-let courses = [
-  { id: 'mern', name: 'MERN Stack Development', description: 'Master MongoDB, Express, React, and Node.js', duration: [1, 2, 3, 6], pricePerMonth: 2999, students: 456, status: 'active' },
-  { id: 'ai-ml', name: 'AI & Machine Learning', description: 'Learn Python, TensorFlow, and build intelligent systems', duration: [1, 2, 3, 6], pricePerMonth: 3499, students: 234, status: 'active' },
-  { id: 'python', name: 'Python Development', description: 'Comprehensive Python programming with Django and Flask', duration: [1, 2, 3, 6], pricePerMonth: 2499, students: 389, status: 'active' },
-  { id: 'web-dev', name: 'Web Development', description: 'Modern frontend and full-stack web apps', duration: [1, 2, 3, 6], pricePerMonth: 2799, students: 567, status: 'active' },
-  { id: 'app-dev', name: 'Mobile App Development', description: 'Build cross-platform mobile apps', duration: [1, 2, 3, 6], pricePerMonth: 3299, students: 198, status: 'active' },
-  { id: 'data-science', name: 'Data Science', description: 'Data analysis and visualization', duration: [1, 2, 3, 6], pricePerMonth: 2999, students: 312, status: 'active' },
-]
+const getSupabase = (req) => {
+  const db = req.app.locals.db
 
-let settings = {
-  general: {
-    companyName: 'Digital Wave IT Solutions Pvt Ltd',
-    tagline: 'Transforming Ideas into Digital Reality',
-    description: 'Leading IT solutions provider',
-  },
-  contact: {
-    email: 'info@digitalwaveit.com',
-    supportEmail: 'support@digitalwaveit.com',
-    phone: '+91 98765 43210',
-    address: '123 Tech Park, Sector 62, Noida, UP 201301',
-    mapUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3502.1234567890123!2d77.3616!3d28.6139',
-  },
-  social: {
-    facebook: 'https://facebook.com/digitalwaveit',
-    twitter: 'https://twitter.com/digitalwaveit',
-    instagram: 'https://instagram.com/digitalwaveit',
-    linkedin: 'https://linkedin.com/company/digitalwaveit',
-  },
-  payment: {
-    payuMode: 'test',
-    currency: 'INR',
+  if (!db || db.type !== 'supabase' || !db.connection) {
+    throw new Error('Supabase database is not configured')
   }
+
+  return db.connection
 }
 
-// Get dashboard stats
+const formatCourse = (course) => ({
+  id: course.id,
+  name: course.name,
+  description: course.description,
+  duration: course.duration,
+  pricePerMonth: course.price_per_month,
+  students: course.students,
+  status: course.status,
+  createdAt: course.created_at,
+  updatedAt: course.updated_at,
+})
+
+// Dashboard stats
 router.get('/stats', async (req, res) => {
   try {
-    const stats = {
-      totalStudents: 2456,
-      activeCourses: courses.filter(c => c.status === 'active').length,
-      totalProjects: 342,
-      monthlyRevenue: 420000,
-      recentStudents: [
-        { name: 'Rahul Sharma', course: 'MERN Stack', date: '2024-01-15', status: 'active' },
-        { name: 'Priya Patel', course: 'AI & ML', date: '2024-01-14', status: 'active' },
-        { name: 'Amit Kumar', course: 'Python', date: '2024-01-13', status: 'pending' },
-        { name: 'Sneha Gupta', course: 'Data Science', date: '2024-01-12', status: 'completed' },
-        { name: 'Vikram Singh', course: 'Web Dev', date: '2024-01-11', status: 'active' },
-      ],
-      pendingProjects: [
-        { student: 'Rohan Mehta', project: 'E-Commerce Platform', stack: 'MERN', amount: '₹4,999', status: 'payment_pending' },
-        { student: 'Anjali Desai', project: 'Sentiment Analysis', stack: 'AI/ML', amount: '₹5,999', status: 'in_progress' },
-        { student: 'Karan Joshi', project: 'Library Management', stack: 'Python', amount: '₹4,499', status: 'review' },
-      ]
-    }
+    const supabase = getSupabase(req)
 
-    res.json({ success: true, data: stats })
+    const { count: totalStudents } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+
+    const { count: activeCourses } = await supabase
+      .from('courses')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'active')
+
+    const { count: totalProjects } = await supabase
+      .from('college_projects')
+      .select('*', { count: 'exact', head: true })
+
+    const { data: payments } = await supabase
+      .from('transactions')
+      .select('amount,status')
+      .eq('status', 'completed')
+
+    const monthlyRevenue = (payments || []).reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0
+    )
+
+    const { data: recentStudents } = await supabase
+      .from('students')
+      .select('name,course_name,start_date,status')
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    const { data: pendingProjects } = await supabase
+      .from('college_projects')
+      .select('student_name,project,stack,amount,status')
+      .in('status', ['payment_pending', 'in_progress', 'review'])
+      .order('created_at', { ascending: false })
+      .limit(5)
+
+    res.json({
+      success: true,
+      data: {
+        totalStudents: totalStudents || 0,
+        activeCourses: activeCourses || 0,
+        totalProjects: totalProjects || 0,
+        monthlyRevenue,
+        recentStudents: (recentStudents || []).map((s) => ({
+          name: s.name,
+          course: s.course_name,
+          date: s.start_date,
+          status: s.status,
+        })),
+        pendingProjects: (pendingProjects || []).map((p) => ({
+          student: p.student_name,
+          project: p.project,
+          stack: p.stack,
+          amount: `₹${p.amount || 0}`,
+          status: p.status,
+        })),
+      },
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch stats' })
+    console.error('Fetch admin stats error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch stats',
+    })
   }
 })
 
 // Get all courses
 router.get('/courses', async (req, res) => {
   try {
-    res.json({ success: true, data: courses })
+    const supabase = getSupabase(req)
+
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    res.json({
+      success: true,
+      data: (data || []).map(formatCourse),
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch courses' })
+    console.error('Fetch courses error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch courses',
+    })
   }
 })
 
 // Create course
 router.post('/courses', async (req, res) => {
   try {
-    const newCourse = { ...req.body, id: Date.now().toString(), students: 0 }
-    courses.push(newCourse)
-    res.json({ success: true, message: 'Course created', data: newCourse })
+    const supabase = getSupabase(req)
+
+    const id =
+      req.body.id ||
+      req.body.name
+        ?.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') ||
+      Date.now().toString()
+
+    if (!req.body.name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course name is required',
+      })
+    }
+
+    const { data, error } = await supabase
+      .from('courses')
+      .insert({
+        id,
+        name: req.body.name,
+        description: req.body.description || '',
+        duration: req.body.duration || [1, 2, 3, 6],
+        price_per_month: Number(
+          req.body.pricePerMonth || req.body.price_per_month || 0
+        ),
+        students: Number(req.body.students || 0),
+        status: req.body.status || 'active',
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    res.json({
+      success: true,
+      message: 'Course created',
+      data: formatCourse(data),
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to create course' })
+    console.error('Create course error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create course',
+    })
   }
 })
 
@@ -89,13 +177,44 @@ router.post('/courses', async (req, res) => {
 router.put('/courses/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const index = courses.findIndex(c => c.id === id)
-    if (index === -1) return res.status(404).json({ success: false, message: 'Course not found' })
+    const supabase = getSupabase(req)
 
-    courses[index] = { ...courses[index], ...req.body }
-    res.json({ success: true, message: 'Course updated', data: courses[index] })
+    const updates = {
+      updated_at: new Date().toISOString(),
+    }
+
+    if (req.body.name !== undefined) updates.name = req.body.name
+    if (req.body.description !== undefined) updates.description = req.body.description
+    if (req.body.duration !== undefined) updates.duration = req.body.duration
+    if (req.body.pricePerMonth !== undefined) {
+      updates.price_per_month = Number(req.body.pricePerMonth)
+    }
+    if (req.body.price_per_month !== undefined) {
+      updates.price_per_month = Number(req.body.price_per_month)
+    }
+    if (req.body.students !== undefined) updates.students = Number(req.body.students)
+    if (req.body.status !== undefined) updates.status = req.body.status
+
+    const { data, error } = await supabase
+      .from('courses')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    res.json({
+      success: true,
+      message: 'Course updated',
+      data: formatCourse(data),
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Update failed' })
+    console.error('Update course error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Update failed',
+    })
   }
 })
 
@@ -103,30 +222,32 @@ router.put('/courses/:id', async (req, res) => {
 router.delete('/courses/:id', async (req, res) => {
   try {
     const { id } = req.params
-    courses = courses.filter(c => c.id !== id)
-    res.json({ success: true, message: 'Course deleted' })
+    const supabase = getSupabase(req)
+
+    const { error } = await supabase.from('courses').delete().eq('id', id)
+
+    if (error) throw error
+
+    res.json({
+      success: true,
+      message: 'Course deleted',
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Delete failed' })
+    console.error('Delete course error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Delete failed',
+    })
   }
 })
 
-// Get settings
+// Settings are now handled by /api/settings
 router.get('/settings', async (req, res) => {
-  try {
-    res.json({ success: true, data: settings })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch settings' })
-  }
+  res.redirect(307, '/api/settings')
 })
 
-// Update settings
 router.put('/settings', async (req, res) => {
-  try {
-    settings = { ...settings, ...req.body }
-    res.json({ success: true, message: 'Settings updated', data: settings })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Update failed' })
-  }
+  res.redirect(307, '/api/settings')
 })
 
 export default router
