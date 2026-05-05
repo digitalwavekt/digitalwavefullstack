@@ -3,15 +3,13 @@ import nodemailer from 'nodemailer'
 
 const router = express.Router()
 
-// In-memory store for contacts
 let contacts = []
 
-// Create email transporter
 const createTransporter = () => {
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    secure: false,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
@@ -19,10 +17,16 @@ const createTransporter = () => {
   })
 }
 
-// Submit contact form
 router.post('/', async (req, res) => {
   try {
     const { name, email, phone, subject, message } = req.body
+
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, subject and message are required'
+      })
+    }
 
     const contact = {
       id: Date.now(),
@@ -37,12 +41,13 @@ router.post('/', async (req, res) => {
 
     contacts.push(contact)
 
-    // Send email notification
     try {
       const transporter = createTransporter()
+
       await transporter.sendMail({
-        from: `"${process.env.FROM_NAME}" <${process.env.FROM_EMAIL}>`,
+        from: `"${process.env.FROM_NAME || 'Digital Wave IT Solutions'}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
         to: process.env.SMTP_USER,
+        replyTo: email,
         subject: `New Contact Form Submission: ${subject}`,
         html: `
           <h2>New Contact Form Submission</h2>
@@ -65,7 +70,6 @@ router.post('/', async (req, res) => {
   }
 })
 
-// Get all contacts (admin)
 router.get('/', async (req, res) => {
   try {
     res.json({ success: true, data: contacts })
@@ -74,7 +78,6 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Update contact status
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params
