@@ -2,112 +2,214 @@ import express from 'express'
 
 const router = express.Router()
 
-// Mock data store
-let collegeProjects = [
-  { id: 1, studentName: 'Rohan Mehta', email: 'rohan@email.com', phone: '+91 98765 43220', college: 'DTU Delhi', branch: 'CSE', year: '4', project: 'E-Commerce Platform', stack: 'MERN', amount: 4999, status: 'payment_pending', requirements: 'Need payment gateway integration and admin dashboard', submittedAt: '2024-01-15' },
-  { id: 2, studentName: 'Anjali Desai', email: 'anjali@email.com', phone: '+91 98765 43221', college: 'IIT Bombay', branch: 'CSE', year: '4', project: 'Sentiment Analysis', stack: 'AI/ML', amount: 5999, status: 'in_progress', requirements: 'Twitter sentiment analysis with visualization', submittedAt: '2024-01-14' },
-  { id: 3, studentName: 'Karan Joshi', email: 'karan@email.com', phone: '+91 98765 43222', college: 'NIT Trichy', branch: 'IT', year: '4', project: 'Library Management', stack: 'Python', amount: 4499, status: 'review', requirements: 'Django based with MySQL database', submittedAt: '2024-01-13' },
-  { id: 4, studentName: 'Neha Reddy', email: 'neha@email.com', phone: '+91 98765 43223', college: 'BITS Pilani', branch: 'CSE', year: '3', project: 'Fitness Tracker App', stack: 'Mobile App', amount: 5499, status: 'completed', requirements: 'React Native with Firebase backend', submittedAt: '2024-01-12' },
-]
+const getSupabase = (req) => {
+  const db = req.app.locals.db
 
-// Submit college project request
+  if (!db || db.type !== 'supabase' || !db.connection) {
+    throw new Error('Supabase database not configured')
+  }
+
+  return db.connection
+}
+
+const formatProject = (p) => ({
+  id: p.id,
+  studentName: p.student_name,
+  email: p.email,
+  phone: p.phone,
+  college: p.college,
+  branch: p.branch,
+  year: p.year,
+  rollNumber: p.roll_number,
+  project: p.project,
+  stack: p.stack,
+  amount: p.amount,
+  status: p.status,
+  requirements: p.requirements,
+  structure: p.structure,
+  structureSentAt: p.structure_sent_at,
+  submittedAt: p.submitted_at,
+  createdAt: p.created_at,
+  updatedAt: p.updated_at,
+})
+
 router.post('/submit', async (req, res) => {
   try {
-    const { name, email, phone, college, branch, year, rollNumber, projectTitle, requirements, stackId, projectName, amount } = req.body
+    const supabase = getSupabase(req)
 
-    const newProject = {
-      id: Date.now(),
-      studentName: name,
+    const {
+      name,
       email,
       phone,
       college,
       branch,
       year,
       rollNumber,
-      project: projectName || projectTitle,
-      stack: stackId,
-      amount: parseInt(amount),
-      status: 'payment_pending',
-      requirements: requirements || 'No specific requirements',
-      submittedAt: new Date().toISOString().split('T')[0]
+      projectTitle,
+      requirements,
+      stackId,
+      projectName,
+      amount,
+    } = req.body
+
+    if (!name || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name and email are required',
+      })
     }
 
-    collegeProjects.push(newProject)
+    const { data, error } = await supabase
+      .from('college_projects')
+      .insert({
+        student_name: name,
+        email,
+        phone,
+        college,
+        branch,
+        year,
+        roll_number: rollNumber,
+        project: projectName || projectTitle,
+        stack: stackId,
+        amount: Number(amount || 0),
+        status: 'payment_pending',
+        requirements: requirements || 'No specific requirements',
+      })
+      .select()
+      .single()
 
-    // Return payment initiation URL
+    if (error) throw error
+
     res.json({
       success: true,
       message: 'Project request submitted',
       data: {
-        projectId: newProject.id,
-        paymentUrl: `/api/payment/initiate?amount=${amount}&type=college-project&projectId=${newProject.id}`
-      }
+        projectId: data.id,
+        project: formatProject(data),
+        paymentUrl: `/api/payment/initiate?amount=${data.amount}&type=college-project&projectId=${data.id}`,
+      },
     })
   } catch (error) {
     console.error('Project submission error:', error)
-    res.status(500).json({ success: false, message: 'Submission failed' })
+    res.status(500).json({
+      success: false,
+      message: 'Submission failed',
+    })
   }
 })
 
-// Get all college projects
 router.get('/', async (req, res) => {
   try {
-    res.json({ success: true, data: collegeProjects })
+    const supabase = getSupabase(req)
+
+    const { data, error } = await supabase
+      .from('college_projects')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    res.json({
+      success: true,
+      data: (data || []).map(formatProject),
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch projects' })
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch projects',
+    })
   }
 })
 
-// Get project by ID
 router.get('/:id', async (req, res) => {
   try {
-    const project = collegeProjects.find(p => p.id === parseInt(req.params.id))
-    if (!project) {
-      return res.status(404).json({ success: false, message: 'Project not found' })
+    const supabase = getSupabase(req)
+
+    const { data, error } = await supabase
+      .from('college_projects')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle()
+
+    if (error) throw error
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found',
+      })
     }
-    res.json({ success: true, data: project })
+
+    res.json({
+      success: true,
+      data: formatProject(data),
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch project' })
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch project',
+    })
   }
 })
 
-// Update project status
 router.put('/:id/status', async (req, res) => {
   try {
-    const { id } = req.params
+    const supabase = getSupabase(req)
     const { status } = req.body
 
-    const project = collegeProjects.find(p => p.id === parseInt(id))
-    if (!project) {
-      return res.status(404).json({ success: false, message: 'Project not found' })
-    }
+    const { data, error } = await supabase
+      .from('college_projects')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single()
 
-    project.status = status
-    project.updatedAt = new Date()
+    if (error) throw error
 
-    res.json({ success: true, message: 'Status updated', data: project })
+    res.json({
+      success: true,
+      message: 'Status updated',
+      data: formatProject(data),
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Update failed' })
+    res.status(500).json({
+      success: false,
+      message: 'Update failed',
+    })
   }
 })
 
-// Send project structure
 router.post('/:id/structure', async (req, res) => {
   try {
-    const { id } = req.params
+    const supabase = getSupabase(req)
     const { structure } = req.body
 
-    const project = collegeProjects.find(p => p.id === parseInt(id))
-    if (!project) {
-      return res.status(404).json({ success: false, message: 'Project not found' })
-    }
+    const { data, error } = await supabase
+      .from('college_projects')
+      .update({
+        structure,
+        structure_sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', req.params.id)
+      .select()
+      .single()
 
-    project.structure = structure
-    project.structureSentAt = new Date()
+    if (error) throw error
 
-    res.json({ success: true, message: 'Project structure sent to student' })
+    res.json({
+      success: true,
+      message: 'Project structure sent to student',
+      data: formatProject(data),
+    })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to send structure' })
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send structure',
+    })
   }
 })
 

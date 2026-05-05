@@ -3,80 +3,17 @@ import jwt from 'jsonwebtoken'
 
 const router = express.Router()
 
-// Mock student data store
-let students = [
-  {
-    id: 1,
-    name: 'Rahul Sharma',
-    email: 'rahul@email.com',
-    googleId: 'google_123',
-    courseId: 'mern',
-    courseName: 'MERN Stack Development',
-    duration: 3,
-    startDate: '2024-01-01',
-    endDate: '2024-04-01',
-    status: 'active',
-    progress: 65,
-    classesAttended: 12,
-    totalClasses: 18,
-    assignmentsCompleted: 8,
-    daysLeft: 45,
-    certificateAvailable: false,
-    googleMeetEmail: 'rahul@digitalwaveit.com',
-    googleMeetPassword: 'RAHU01011999',
-    upcomingClasses: [
-      { title: 'React Hooks Deep Dive', date: '2024-02-15', time: '10:00 AM', meetLink: 'https://meet.google.com/abc-defg-hij' },
-      { title: 'Node.js Authentication', date: '2024-02-17', time: '2:00 PM', meetLink: 'https://meet.google.com/klm-nopq-rst' },
-    ]
-  },
-  {
-    id: 2,
-    name: 'Priya Patel',
-    email: 'priya@email.com',
-    googleId: 'google_456',
-    courseId: 'ai-ml',
-    courseName: 'AI & Machine Learning',
-    duration: 6,
-    startDate: '2023-10-01',
-    endDate: '2024-04-01',
-    status: 'active',
-    progress: 88,
-    classesAttended: 28,
-    totalClasses: 32,
-    assignmentsCompleted: 15,
-    daysLeft: 12,
-    certificateAvailable: false,
-    googleMeetEmail: 'priya@digitalwaveit.com',
-    googleMeetPassword: 'PRIY15051998',
-    upcomingClasses: [
-      { title: 'Neural Networks', date: '2024-02-16', time: '11:00 AM', meetLink: 'https://meet.google.com/uvw-wxyz-abc' },
-    ]
-  },
-  {
-    id: 3,
-    name: 'Sneha Gupta',
-    email: 'sneha@email.com',
-    googleId: 'google_789',
-    courseId: 'data-science',
-    courseName: 'Data Science',
-    duration: 3,
-    startDate: '2023-11-01',
-    endDate: '2024-02-01',
-    status: 'completed',
-    progress: 100,
-    classesAttended: 18,
-    totalClasses: 18,
-    assignmentsCompleted: 12,
-    daysLeft: 0,
-    certificateAvailable: true,
-    googleMeetEmail: 'sneha@digitalwaveit.com',
-    googleMeetPassword: 'SNEH20081999',
-    upcomingClasses: [],
-    certificateId: 'DW-2024-003'
-  }
-]
+const getSupabase = (req) => {
+  const db = req.app.locals.db
 
-// Middleware
+  if (!db || db.type !== 'supabase' || !db.connection) {
+    throw new Error('Supabase database not configured')
+  }
+
+  return db.connection
+}
+
+// 🔐 Auth middleware
 const studentAuth = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1]
@@ -90,140 +27,163 @@ const studentAuth = (req, res, next) => {
   }
 }
 
-// Register student after payment
+// 🧾 Register student
 router.post('/register', async (req, res) => {
   try {
+    const supabase = getSupabase(req)
+
     const { name, email, googleId, courseId, courseName, duration, amount } = req.body
 
-    // Generate Google Meet credentials
-    // Password format: First 4 letters of name (CAPS) + DOB (DDMMYYYY)
     const first4Name = name.replace(/\s/g, '').substring(0, 4).toUpperCase()
-    const dobFormatted = '01011999' // This would come from the form
-    const meetPassword = `${first4Name}${dobFormatted}`
+    const meetPassword = `${first4Name}01011999`
 
     const startDate = new Date()
     const endDate = new Date()
     endDate.setMonth(endDate.getMonth() + parseInt(duration))
 
-    const newStudent = {
-      id: Date.now(),
-      name,
-      email,
-      googleId,
-      courseId,
-      courseName,
-      duration: parseInt(duration),
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-      status: 'active',
-      progress: 0,
-      classesAttended: 0,
-      totalClasses: parseInt(duration) * 6, // 6 classes per month
-      assignmentsCompleted: 0,
-      daysLeft: parseInt(duration) * 30,
-      certificateAvailable: false,
-      googleMeetEmail: email,
-      googleMeetPassword: meetPassword,
-      upcomingClasses: []
-    }
+    const { data, error } = await supabase
+      .from('students')
+      .insert({
+        name,
+        email,
+        google_id: googleId,
+        course_id: courseId,
+        course_name: courseName,
+        duration: parseInt(duration),
+        amount: parseInt(amount || 0),
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+        status: 'active',
+        progress: 0,
+        classes_attended: 0,
+        total_classes: parseInt(duration) * 6,
+        assignments_completed: 0,
+        certificate_available: false,
+        google_meet_email: email,
+        google_meet_password: meetPassword,
+        upcoming_classes: []
+      })
+      .select()
+      .single()
 
-    students.push(newStudent)
+    if (error) throw error
 
     res.json({
       success: true,
-      message: 'Student registered successfully',
+      message: 'Student registered',
       data: {
-        id: newStudent.id,
-        name: newStudent.name,
-        email: newStudent.email,
-        meetEmail: newStudent.googleMeetEmail,
-        meetPassword: newStudent.googleMeetPassword,
-        startDate: newStudent.startDate,
-        endDate: newStudent.endDate
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        meetEmail: data.google_meet_email,
+        meetPassword: data.google_meet_password,
+        startDate: data.start_date,
+        endDate: data.end_date
       }
     })
   } catch (error) {
-    console.error('Student registration error:', error)
+    console.error('Register error:', error)
     res.status(500).json({ success: false, message: 'Registration failed' })
   }
 })
 
-// Get student dashboard
+// 📊 Dashboard
 router.get('/dashboard', studentAuth, async (req, res) => {
   try {
-    const student = students.find(s => s.email === req.user.email)
+    const supabase = getSupabase(req)
 
-    if (!student) {
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('email', req.user.email)
+      .maybeSingle()
+
+    if (error || !data) {
       return res.status(404).json({ success: false, message: 'Student not found' })
     }
 
-    // Check if certificate should be available
     const today = new Date()
-    const endDate = new Date(student.endDate)
+    const endDate = new Date(data.end_date)
 
-    if (today >= endDate && student.progress >= 80) {
-      student.certificateAvailable = true
+    let certificateAvailable = data.certificate_available
+
+    if (today >= endDate && data.progress >= 80) {
+      certificateAvailable = true
     }
 
     res.json({
       success: true,
       data: {
-        name: student.name,
-        email: student.email,
-        courseName: student.courseName,
-        duration: student.duration,
-        startDate: student.startDate,
-        endDate: student.endDate,
-        status: student.status,
-        progress: student.progress,
-        classesAttended: student.classesAttended,
-        totalClasses: student.totalClasses,
-        assignmentsCompleted: student.assignmentsCompleted,
-        daysLeft: student.daysLeft,
-        certificateAvailable: student.certificateAvailable,
-        certificateId: student.certificateId,
-        googleMeetEmail: student.googleMeetEmail,
-        googleMeetPassword: student.googleMeetPassword,
-        upcomingClasses: student.upcomingClasses
+        name: data.name,
+        email: data.email,
+        courseName: data.course_name,
+        duration: data.duration,
+        startDate: data.start_date,
+        endDate: data.end_date,
+        status: data.status,
+        progress: data.progress,
+        classesAttended: data.classes_attended,
+        totalClasses: data.total_classes,
+        assignmentsCompleted: data.assignments_completed,
+        certificateAvailable,
+        certificateId: data.certificate_id,
+        googleMeetEmail: data.google_meet_email,
+        googleMeetPassword: data.google_meet_password,
+        upcomingClasses: data.upcoming_classes || []
       }
     })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to load dashboard' })
+    res.status(500).json({ success: false, message: 'Dashboard error' })
   }
 })
 
-// Download certificate
+// 📄 Certificate
 router.get('/certificate/download', studentAuth, async (req, res) => {
   try {
-    const student = students.find(s => s.email === req.user.email)
+    const supabase = getSupabase(req)
 
-    if (!student || !student.certificateAvailable) {
+    const { data } = await supabase
+      .from('students')
+      .select('*')
+      .eq('email', req.user.email)
+      .maybeSingle()
+
+    if (!data || !data.certificate_available) {
       return res.status(403).json({ success: false, message: 'Certificate not available' })
     }
 
-    // In production, generate PDF here
-    // For now, return certificate data
     res.json({
       success: true,
       data: {
-        certificateId: student.certificateId || `DW-${new Date().getFullYear()}-${String(student.id).padStart(3, '0')}`,
-        studentName: student.name,
-        courseName: student.courseName,
+        certificateId:
+          data.certificate_id ||
+          `DW-${new Date().getFullYear()}-${String(data.id).padStart(3, '0')}`,
+        studentName: data.name,
+        courseName: data.course_name,
         issueDate: new Date().toISOString().split('T')[0],
-        duration: student.duration
+        duration: data.duration
       }
     })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to generate certificate' })
+    res.status(500).json({ success: false, message: 'Certificate error' })
   }
 })
 
-// Get all students (admin)
+// 👨‍💼 Admin: All students
 router.get('/all', async (req, res) => {
   try {
-    res.json({ success: true, data: students })
+    const supabase = getSupabase(req)
+
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    res.json({ success: true, data })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch students' })
+    res.status(500).json({ success: false, message: 'Fetch failed' })
   }
 })
 
