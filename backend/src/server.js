@@ -31,6 +31,7 @@ app.set('trust proxy', 1)
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
+    contentSecurityPolicy: false, // Three.js conflict avoid
   })
 )
 
@@ -94,18 +95,24 @@ app.options('*', cors(corsOptions))
 // ============================================
 // RATE LIMITING
 // ============================================
-const limiter = rateLimit({
+// General API limiter
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.RATE_LIMIT_MAX || 100),
-  standardHeaders: true,
-  legacyHeaders: false,
+  max: 100,
+})
+
+// Strict auth limiter (important)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10, // only 10 attempts
   message: {
     success: false,
-    message: 'Too many requests, please try again later',
+    message: 'Too many login attempts, try after 15 minutes',
   },
 })
 
-app.use('/api/', limiter)
+app.use('/api/', apiLimiter)
+app.use('/api/auth', authLimiter)
 
 // Body parsing
 app.use(express.json({ limit: process.env.JSON_LIMIT || '10mb' }))

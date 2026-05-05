@@ -6,9 +6,15 @@ import { OAuth2Client } from 'google-auth-library'
 const router = express.Router()
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
-const signToken = (payload) => {
+const signAccessToken = (payload) => {
   return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d',
+    expiresIn: process.env.JWT_EXPIRE || '15m',
+  })
+}
+
+const signRefreshToken = (payload) => {
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRE || '7d',
   })
 }
 
@@ -191,6 +197,20 @@ router.post('/admin-login', async (req, res) => {
       })
     }
 
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid input format',
+      })
+    }
+
+    if (!email.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+      })
+    }
+
     const supabase = getSupabase(req)
 
     const { data: admin, error } = await supabase
@@ -222,11 +242,32 @@ router.post('/admin-login', async (req, res) => {
       })
     }
 
-    const token = signToken({
+    const accessToken = signAccessToken({
       id: admin.id,
       email: admin.email,
       role: admin.role,
       type: 'admin',
+    })
+
+    const refreshToken = signRefreshToken({
+      id: admin.id,
+      email: admin.email,
+      role: admin.role,
+      type: 'admin',
+    })
+
+    res.json({
+      success: true,
+      accessToken,
+      refreshToken,
+      token: accessToken, // old frontend compatibility ke liye
+      user: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        permissions: admin.permissions || [],
+      },
     })
 
     res.json({
@@ -245,6 +286,156 @@ router.post('/admin-login', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Login failed',
+    })
+  }
+})
+
+router.post('/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body
+
+    if (!refreshToken) {
+      return res.status(401).json({ success: false, message: 'Missing token' })
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET)
+
+    const accessToken = signAccessToken({
+      id: decoded.id,
+      type: 'admin',
+    })
+
+    res.json({ success: true, accessToken })
+  } catch (err) {
+    res.status(401).json({ success: false, message: 'Invalid refresh token' })
+  }
+})
+
+import crypto from 'crypto'
+
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body
+    const supabase = getSupabase(req)
+
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('*')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (!admin) {
+      return res.json({ success: true }) // hide existence
+    }
+
+    const token = crypto.randomBytes(32).toString('hex')
+
+    await supabase
+      .from('admins')
+      .update({
+        reset_token: token,
+        reset_token_expiry: new Date(Date.now() + 15 * 60 * 1000),
+      })
+      .eq('id', admin.id)
+
+    // EMAIL SEND (Titan SMTP)
+    console.log('Reset token:', token)
+
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ success: false })
+  }
+})
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body
+    const supabase = getSupabase(req)
+
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('*')
+      .eq('reset_token', token)
+      .maybeSingle()
+
+    if (!admin || new Date(admin.reset_token_expiry) < new Date()) {
+      return res.status(400).json({ success: false, message: 'Invalid token' })
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10)
+
+    await supabase
+      .from('admins')
+      .update({
+        password_hash: hash,
+        reset_token: null,
+        reset_token_expiry: null,
+      })
+      .eq('id', admin.id)
+
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ success: false })
+  }
+})
+
+
+// ===============================
+// 🔄 REFRESH TOKEN
+// ===============================
+router.post('/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token required',
+      })
+    }
+
+    let decoded
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET)
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token',
+      })
+    }
+
+    const supabase = getSupabase(req)
+
+    // optional: verify admin still exists
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('id,email,role,status')
+      .eq('id', decoded.id)
+      .maybeSingle()
+
+    if (!admin || admin.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin not found or inactive',
+      })
+    }
+
+    const newAccessToken = signAccessToken({
+      id: admin.id,
+      email: admin.email,
+      role: admin.role,
+      type: 'admin',
+    })
+
+    res.json({
+      success: true,
+      accessToken: newAccessToken,
+    })
+  } catch (error) {
+    console.error('Refresh token error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to refresh token',
     })
   }
 })
