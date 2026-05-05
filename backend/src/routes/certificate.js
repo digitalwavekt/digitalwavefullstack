@@ -1,126 +1,274 @@
 import express from 'express'
+import jwt from 'jsonwebtoken'
 import PDFDocument from 'pdfkit'
+import crypto from 'crypto'
 
 const router = express.Router()
 
-// Mock certificate store
-let certificates = [
-  { id: 1, studentId: 3, studentName: 'Sneha Gupta', course: 'Data Science', issueDate: '2024-02-01', certificateId: 'DW-2024-003', status: 'issued', template: 'modern' },
-]
-
-let certificateDesign = {
-  primaryColor: '#3b82f6',
-  secondaryColor: '#8b5cf6',
-  fontFamily: 'Inter',
-  logoUrl: '',
-  signatureUrl: '',
-  template: 'modern',
+const getSupabase = (req) => {
+  const db = req.app.locals.db
+  if (!db || db.type !== 'supabase' || !db.connection) {
+    throw new Error('Supabase not configured')
+  }
+  return db.connection
 }
 
-// Generate certificate PDF
-router.get('/generate/:studentId', async (req, res) => {
+const studentAuth = (req, res, next) => {
   try {
-    const { studentId } = req.params
-    const cert = certificates.find(c => c.studentId === parseInt(studentId))
+    const token = req.headers.authorization?.split(' ')[1]
+    if (!token) return res.status(401).json({ success: false, message: 'No token' })
 
-    if (!cert) {
-      return res.status(404).json({ success: false, message: 'Certificate not found' })
-    }
-
-    // Create PDF
-    const doc = new PDFDocument({ layout: 'landscape', size: 'A4' })
-
-    res.setHeader('Content-Type', 'application/pdf')
-    res.setHeader('Content-Disposition', `attachment; filename=certificate-${cert.certificateId}.pdf`)
-
-    doc.pipe(res)
-
-    // Background
-    doc.rect(0, 0, 842, 595).fill('#ffffff')
-
-    // Border
-    doc.rect(20, 20, 802, 555).lineWidth(3).stroke(certificateDesign.primaryColor)
-    doc.rect(30, 30, 782, 535).lineWidth(1).stroke(certificateDesign.secondaryColor)
-
-    // Header
-    doc.fontSize(40).fillColor(certificateDesign.primaryColor).text('Certificate of Completion', 0, 80, { align: 'center' })
-
-    doc.fontSize(16).fillColor('#666').text('This is to certify that', 0, 160, { align: 'center' })
-
-    // Student Name
-    doc.fontSize(32).fillColor('#333').text(cert.studentName, 0, 200, { align: 'center' })
-
-    // Course
-    doc.fontSize(16).fillColor('#666').text('has successfully completed', 0, 260, { align: 'center' })
-    doc.fontSize(28).fillColor(certificateDesign.secondaryColor).text(cert.course, 0, 290, { align: 'center' })
-
-    // Details
-    doc.fontSize(14).fillColor('#666').text('Duration: 3 Months', 0, 360, { align: 'center' })
-    doc.fontSize(14).fillColor('#666').text(`Issue Date: ${cert.issueDate}`, 0, 385, { align: 'center' })
-    doc.fontSize(12).fillColor('#999').text(`Certificate ID: ${cert.certificateId}`, 0, 420, { align: 'center' })
-
-    // Footer
-    doc.fontSize(12).fillColor('#666').text('Digital Wave IT Solutions Pvt Ltd', 0, 500, { align: 'center' })
-
-    doc.end()
-  } catch (error) {
-    console.error('Certificate generation error:', error)
-    res.status(500).json({ success: false, message: 'Failed to generate certificate' })
+    req.user = jwt.verify(token, process.env.JWT_SECRET)
+    next()
+  } catch {
+    res.status(401).json({ success: false, message: 'Invalid token' })
   }
-})
-
-// Get certificate design
-router.get('/design', async (req, res) => {
-  try {
-    res.json({ success: true, data: certificateDesign })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch design' })
-  }
-})
-
-// Update certificate design
-router.put('/design', async (req, res) => {
-  try {
-    certificateDesign = { ...certificateDesign, ...req.body }
-    res.json({ success: true, message: 'Design updated', data: certificateDesign })
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Update failed' })
-  }
-})
+}
 
 // Issue certificate
-router.post('/issue', async (req, res) => {
+router.post('/issue/:studentId', async (req, res) => {
   try {
-    const { studentId, studentName, course } = req.body
+    const supabase = getSupabase(req)
+    const { studentId } = req.params
 
-    const newCertificate = {
-      id: Date.now(),
-      studentId,
-      studentName,
-      course,
-      issueDate: new Date().toISOString().split('T')[0],
-      certificateId: `DW-${new Date().getFullYear()}-${String(certificates.length + 1).padStart(3, '0')}`,
-      status: 'issued',
-      template: certificateDesign.template
+    const { data: student } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', studentId)
+      .maybeSingle()
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' })
     }
 
-    certificates.push(newCertificate)
+    const certId = `DW-${new Date().getFullYear()}-${String(student.id).padStart(3, '0')}`
+    const verificationToken = crypto.randomBytes(24).toString('hex')
 
-    res.json({
-      success: true,
-      message: 'Certificate issued',
-      data: newCertificate
-    })
+    const { data, error } = await supabase
+      .from('certificates')
+      .insert({
+        certificate_id: certId,
+        student_id: student.id,
+        student_name: student.name,
+        course_name: student.course_name,
+        duration: student.duration,
+        verification_token: verificationToken,
+        verification_url: `${process.env.FRONTEND_URL}/certificate/verify/${verificationToken}`,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    await supabase
+      .from('students')
+      .update({
+        certificate_available: true,
+        certificate_id: certId,
+      })
+      .eq('id', student.id)
+
+    res.json({ success: true, data })
   } catch (error) {
+    console.error('Issue certificate error:', error)
     res.status(500).json({ success: false, message: 'Failed to issue certificate' })
   }
 })
 
-// Get all certificates
-router.get('/', async (req, res) => {
+// Student certificate JSON
+router.get('/my', studentAuth, async (req, res) => {
   try {
-    res.json({ success: true, data: certificates })
+    const supabase = getSupabase(req)
+
+    const { data: student } = await supabase
+      .from('students')
+      .select('*')
+      .eq('email', req.user.email)
+      .maybeSingle()
+
+    if (!student || !student.certificate_available) {
+      return res.status(403).json({ success: false, message: 'Not available' })
+    }
+
+    const { data: cert } = await supabase
+      .from('certificates')
+      .select('*')
+      .eq('student_id', student.id)
+      .maybeSingle()
+
+    res.json({ success: true, data: cert })
   } catch (error) {
+    console.error('Get my certificate error:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch certificate' })
+  }
+})
+
+// Public verify certificate
+router.get('/verify/:token', async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { token } = req.params
+
+    const { data, error } = await supabase
+      .from('certificates')
+      .select('*')
+      .eq('verification_token', token)
+      .maybeSingle()
+
+    if (error) throw error
+
+    if (!data || data.status === 'revoked' || data.revoked_at) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid certificate',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: {
+        student_name: data.student_name,
+        course_name: data.course_name,
+        issue_date: data.issue_date,
+        certificate_id: data.certificate_id,
+        pdf_url: data.pdf_url || null,
+        verification_url: data.verification_url || null,
+      },
+    })
+  } catch (error) {
+    console.error('Verify certificate error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Verification failed',
+    })
+  }
+})
+
+// Download PDF certificate
+router.get('/download', studentAuth, async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+
+    const { data: student } = await supabase
+      .from('students')
+      .select('*')
+      .eq('email', req.user.email)
+      .maybeSingle()
+
+    if (!student || !student.certificate_available) {
+      return res.status(403).json({
+        success: false,
+        message: 'Certificate not available',
+      })
+    }
+
+    const { data: cert } = await supabase
+      .from('certificates')
+      .select('*')
+      .eq('student_id', student.id)
+      .maybeSingle()
+
+    const certId =
+      cert?.certificate_id ||
+      student.certificate_id ||
+      `DW-${new Date().getFullYear()}-${String(student.id).padStart(3, '0')}`
+
+    const doc = new PDFDocument({
+      size: 'A4',
+      layout: 'landscape',
+      margin: 0,
+    })
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename=certificate-${certId}.pdf`)
+
+    doc.pipe(res)
+
+    doc.rect(0, 0, doc.page.width, doc.page.height).fill('#0f172a')
+
+    doc
+      .lineWidth(8)
+      .strokeColor('#ff7a00')
+      .rect(20, 20, doc.page.width - 40, doc.page.height - 40)
+      .stroke()
+
+    doc
+      .lineWidth(2)
+      .strokeColor('#22c55e')
+      .rect(35, 35, doc.page.width - 70, doc.page.height - 70)
+      .stroke()
+
+    doc
+      .fillColor('#ffffff')
+      .fontSize(36)
+      .text('CERTIFICATE OF COMPLETION', 0, 80, { align: 'center' })
+
+    doc
+      .fontSize(18)
+      .fillColor('#cbd5f5')
+      .text('This is to certify that', 0, 150, { align: 'center' })
+
+    doc
+      .fontSize(30)
+      .fillColor('#ff7a00')
+      .text(student.name, 0, 200, { align: 'center' })
+
+    doc
+      .fontSize(18)
+      .fillColor('#ffffff')
+      .text('has successfully completed', 0, 260, { align: 'center' })
+
+    doc
+      .fontSize(22)
+      .fillColor('#22c55e')
+      .text(student.course_name, 0, 300, { align: 'center' })
+
+    doc
+      .fontSize(16)
+      .fillColor('#cbd5f5')
+      .text(`Duration: ${student.duration} Months`, 0, 350, { align: 'center' })
+
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 0, 390, { align: 'center' })
+
+    doc
+      .fontSize(12)
+      .fillColor('#94a3b8')
+      .text(`Certificate ID: ${certId}`, 0, 430, { align: 'center' })
+
+    if (cert?.verification_url) {
+      doc
+        .fontSize(10)
+        .fillColor('#94a3b8')
+        .text(`Verify: ${cert.verification_url}`, 0, 455, { align: 'center' })
+    }
+
+    doc
+      .fontSize(16)
+      .fillColor('#ffffff')
+      .text('Digital Wave IT Solutions', 0, 500, { align: 'center' })
+
+    doc.end()
+  } catch (error) {
+    console.error('Download certificate error:', error)
+    res.status(500).json({ success: false, message: 'Failed to download certificate' })
+  }
+})
+
+// Admin all certificates
+router.get('/all', async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+
+    const { data, error } = await supabase
+      .from('certificates')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    res.json({ success: true, data })
+  } catch (error) {
+    console.error('Fetch certificates error:', error)
     res.status(500).json({ success: false, message: 'Failed to fetch certificates' })
   }
 })

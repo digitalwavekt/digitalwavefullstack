@@ -43,6 +43,7 @@ function App() {
             <Route path="/payment/success" element={<PaymentSuccess />} />
             <Route path="/payment/failed" element={<PaymentFailed />} />
             <Route path="/certificate/:id" element={<CertificateDownload />} />
+            <Route path="/certificate/verify/:token" element={<VerifyCertificate />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>
