@@ -1,6 +1,7 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { OAuth2Client } from 'google-auth-library'
 
 const router = express.Router()
@@ -113,6 +114,13 @@ router.post('/google', async (req, res) => {
   try {
     const { token } = req.body
 
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google token is required',
+      })
+    }
+
     if (!process.env.GOOGLE_CLIENT_ID) {
       return res.status(500).json({
         success: false,
@@ -159,16 +167,24 @@ router.post('/google', async (req, res) => {
       user = createdUser
     }
 
-    const jwtToken = signToken({
+    const accessToken = signAccessToken({
       id: user.id,
       email: user.email,
       name: user.name,
       type: 'user',
     })
 
+    const refreshToken = signRefreshToken({
+      id: user.id,
+      email: user.email,
+      type: 'user',
+    })
+
     res.json({
       success: true,
-      token: jwtToken,
+      accessToken,
+      refreshToken,
+      token: accessToken,
       user: {
         id: user.id,
         name: user.name,
@@ -185,7 +201,7 @@ router.post('/google', async (req, res) => {
   }
 })
 
-// Admin Login from Supabase DB
+// Admin Login
 router.post('/admin-login', async (req, res) => {
   try {
     const { email, password } = req.body
@@ -204,7 +220,9 @@ router.post('/admin-login', async (req, res) => {
       })
     }
 
-    if (!email.includes('@')) {
+    const normalizedEmail = email.trim().toLowerCase()
+
+    if (!normalizedEmail.includes('@')) {
       return res.status(400).json({
         success: false,
         message: 'Invalid email format',
@@ -216,7 +234,7 @@ router.post('/admin-login', async (req, res) => {
     const { data: admin, error } = await supabase
       .from('admins')
       .select('*')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .maybeSingle()
 
     if (error || !admin) {
@@ -260,19 +278,7 @@ router.post('/admin-login', async (req, res) => {
       success: true,
       accessToken,
       refreshToken,
-      token: accessToken, // old frontend compatibility ke liye
-      user: {
-        id: admin.id,
-        name: admin.name,
-        email: admin.email,
-        role: admin.role,
-        permissions: admin.permissions || [],
-      },
-    })
-
-    res.json({
-      success: true,
-      token,
+      token: accessToken,
       user: {
         id: admin.id,
         name: admin.name,
@@ -290,99 +296,7 @@ router.post('/admin-login', async (req, res) => {
   }
 })
 
-router.post('/refresh-token', async (req, res) => {
-  try {
-    const { refreshToken } = req.body
-
-    if (!refreshToken) {
-      return res.status(401).json({ success: false, message: 'Missing token' })
-    }
-
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET)
-
-    const accessToken = signAccessToken({
-      id: decoded.id,
-      type: 'admin',
-    })
-
-    res.json({ success: true, accessToken })
-  } catch (err) {
-    res.status(401).json({ success: false, message: 'Invalid refresh token' })
-  }
-})
-
-import crypto from 'crypto'
-
-router.post('/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body
-    const supabase = getSupabase(req)
-
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('*')
-      .eq('email', email)
-      .maybeSingle()
-
-    if (!admin) {
-      return res.json({ success: true }) // hide existence
-    }
-
-    const token = crypto.randomBytes(32).toString('hex')
-
-    await supabase
-      .from('admins')
-      .update({
-        reset_token: token,
-        reset_token_expiry: new Date(Date.now() + 15 * 60 * 1000),
-      })
-      .eq('id', admin.id)
-
-    // EMAIL SEND (Titan SMTP)
-    console.log('Reset token:', token)
-
-    res.json({ success: true })
-  } catch (err) {
-    res.status(500).json({ success: false })
-  }
-})
-
-router.post('/reset-password', async (req, res) => {
-  try {
-    const { token, newPassword } = req.body
-    const supabase = getSupabase(req)
-
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('*')
-      .eq('reset_token', token)
-      .maybeSingle()
-
-    if (!admin || new Date(admin.reset_token_expiry) < new Date()) {
-      return res.status(400).json({ success: false, message: 'Invalid token' })
-    }
-
-    const hash = await bcrypt.hash(newPassword, 10)
-
-    await supabase
-      .from('admins')
-      .update({
-        password_hash: hash,
-        reset_token: null,
-        reset_token_expiry: null,
-      })
-      .eq('id', admin.id)
-
-    res.json({ success: true })
-  } catch (err) {
-    res.status(500).json({ success: false })
-  }
-})
-
-
-// ===============================
-// 🔄 REFRESH TOKEN
-// ===============================
+// Refresh Token
 router.post('/refresh-token', async (req, res) => {
   try {
     const { refreshToken } = req.body
@@ -395,6 +309,7 @@ router.post('/refresh-token', async (req, res) => {
     }
 
     let decoded
+
     try {
       decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET)
     } catch (err) {
@@ -406,36 +321,199 @@ router.post('/refresh-token', async (req, res) => {
 
     const supabase = getSupabase(req)
 
-    // optional: verify admin still exists
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('id,email,role,status')
-      .eq('id', decoded.id)
-      .maybeSingle()
+    if (decoded.type === 'admin') {
+      const { data: admin } = await supabase
+        .from('admins')
+        .select('id,email,role,status')
+        .eq('id', decoded.id)
+        .maybeSingle()
 
-    if (!admin || admin.status !== 'active') {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin not found or inactive',
+      if (!admin || admin.status !== 'active') {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin not found or inactive',
+        })
+      }
+
+      const accessToken = signAccessToken({
+        id: admin.id,
+        email: admin.email,
+        role: admin.role,
+        type: 'admin',
+      })
+
+      return res.json({
+        success: true,
+        accessToken,
+        token: accessToken,
       })
     }
 
-    const newAccessToken = signAccessToken({
-      id: admin.id,
-      email: admin.email,
-      role: admin.role,
-      type: 'admin',
+    const { data: user } = await supabase
+      .from('users')
+      .select('id,email,name')
+      .eq('id', decoded.id)
+      .maybeSingle()
+
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        message: 'User not found',
+      })
+    }
+
+    const accessToken = signAccessToken({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      type: 'user',
     })
 
     res.json({
       success: true,
-      accessToken: newAccessToken,
+      accessToken,
+      token: accessToken,
     })
   } catch (error) {
     console.error('Refresh token error:', error)
     res.status(500).json({
       success: false,
       message: 'Failed to refresh token',
+    })
+  }
+})
+
+// Forgot Password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid email is required',
+      })
+    }
+
+    const normalizedEmail = email.trim().toLowerCase()
+    const supabase = getSupabase(req)
+
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('*')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (!admin) {
+      return res.json({
+        success: true,
+        message: 'If this email exists, reset instructions will be sent.',
+      })
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const resetExpiry = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+
+    const { error } = await supabase
+      .from('admins')
+      .update({
+        reset_token: resetToken,
+        reset_token_expiry: resetExpiry,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', admin.id)
+
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create reset token',
+      })
+    }
+
+    console.log('Password reset token:', resetToken)
+
+    res.json({
+      success: true,
+      message: 'If this email exists, reset instructions will be sent.',
+    })
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process request',
+    })
+  }
+})
+
+// Reset Password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required',
+      })
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters',
+      })
+    }
+
+    const supabase = getSupabase(req)
+
+    const { data: admin } = await supabase
+      .from('admins')
+      .select('*')
+      .eq('reset_token', token)
+      .maybeSingle()
+
+    if (!admin || !admin.reset_token_expiry) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token',
+      })
+    }
+
+    if (new Date(admin.reset_token_expiry) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token',
+      })
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10)
+
+    const { error } = await supabase
+      .from('admins')
+      .update({
+        password_hash: passwordHash,
+        reset_token: null,
+        reset_token_expiry: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', admin.id)
+
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to reset password',
+      })
+    }
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully',
+    })
+  } catch (error) {
+    console.error('Reset password error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password',
     })
   }
 })
@@ -459,12 +537,13 @@ router.post('/subadmin', adminMiddleware, async (req, res) => {
       })
     }
 
+    const normalizedEmail = email.trim().toLowerCase()
     const supabase = getSupabase(req)
 
     const { data: existingAdmin } = await supabase
       .from('admins')
       .select('id')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .maybeSingle()
 
     if (existingAdmin) {
@@ -480,7 +559,7 @@ router.post('/subadmin', adminMiddleware, async (req, res) => {
       .from('admins')
       .insert({
         name,
-        email,
+        email: normalizedEmail,
         password_hash: passwordHash,
         role: 'subadmin',
         permissions: permissions || [],
@@ -558,6 +637,10 @@ router.put('/subadmin/:id', adminMiddleware, async (req, res) => {
     if (updates.password) {
       updates.password_hash = await bcrypt.hash(updates.password, 10)
       delete updates.password
+    }
+
+    if (updates.email) {
+      updates.email = updates.email.trim().toLowerCase()
     }
 
     updates.updated_at = new Date().toISOString()
