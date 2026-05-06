@@ -1,19 +1,38 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Save, Image, MapPin, Phone, Mail, Globe, Facebook, Twitter, Instagram, Linkedin, Youtube, AlertTriangle, Loader2 } from 'lucide-react'
+import {
+  Save,
+  Image,
+  MapPin,
+  Phone,
+  Mail,
+  Globe,
+  Facebook,
+  Twitter,
+  Instagram,
+  Linkedin,
+  Youtube,
+  AlertTriangle,
+  Loader2,
+  Upload,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiFetch } from '../../lib/api'
-
+import { uploadFile } from '../../lib/uploadFile'
 
 export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState('general')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [uploadingField, setUploadingField] = useState(null)
 
   const [generalSettings, setGeneralSettings] = useState({})
   const [contactSettings, setContactSettings] = useState({})
   const [socialSettings, setSocialSettings] = useState({})
-  const [paymentSettings, setPaymentSettings] = useState({ payuMode: 'test', currency: 'INR' })
+  const [paymentSettings, setPaymentSettings] = useState({
+    payuMode: 'test',
+    currency: 'INR',
+  })
 
   const tabs = [
     { id: 'general', label: 'General', icon: Globe },
@@ -73,6 +92,31 @@ export default function SettingsPanel() {
     }
   }
 
+  const handleSettingUpload = async (file, field, folder) => {
+    if (!file) return
+
+    try {
+      setUploadingField(field)
+
+      const uploaded = await uploadFile({
+        file,
+        bucket: 'uploads',
+        folder,
+      })
+
+      setGeneralSettings((prev) => ({
+        ...prev,
+        [field]: uploaded.publicUrl,
+      }))
+
+      toast.success(`${field} uploaded`)
+    } catch (error) {
+      toast.error(error.message || 'Upload failed')
+    } finally {
+      setUploadingField(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-3 text-white">
@@ -116,15 +160,47 @@ export default function SettingsPanel() {
             <h3 className="text-white font-semibold">General Settings</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input label="Company Name" value={generalSettings.companyName} onChange={(v) => setGeneralSettings({ ...generalSettings, companyName: v })} />
-              <Input label="Tagline" value={generalSettings.tagline} onChange={(v) => setGeneralSettings({ ...generalSettings, tagline: v })} />
+              <Input
+                label="Company Name"
+                value={generalSettings.companyName}
+                onChange={(v) => setGeneralSettings({ ...generalSettings, companyName: v })}
+              />
+
+              <Input
+                label="Tagline"
+                value={generalSettings.tagline}
+                onChange={(v) => setGeneralSettings({ ...generalSettings, tagline: v })}
+              />
             </div>
 
-            <Textarea label="Meta Description" value={generalSettings.description} onChange={(v) => setGeneralSettings({ ...generalSettings, description: v })} />
+            <Textarea
+              label="Meta Description"
+              value={generalSettings.description}
+              onChange={(v) => setGeneralSettings({ ...generalSettings, description: v })}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <IconInput icon={Image} label="Logo URL" value={generalSettings.logo} onChange={(v) => setGeneralSettings({ ...generalSettings, logo: v })} />
-              <IconInput icon={Image} label="Favicon URL" value={generalSettings.favicon} onChange={(v) => setGeneralSettings({ ...generalSettings, favicon: v })} />
+              <UploadUrlInput
+                label="Logo URL"
+                value={generalSettings.logo}
+                field="logo"
+                folder="logos"
+                previewType="logo"
+                uploadingField={uploadingField}
+                onChange={(v) => setGeneralSettings({ ...generalSettings, logo: v })}
+                onUpload={handleSettingUpload}
+              />
+
+              <UploadUrlInput
+                label="Favicon URL"
+                value={generalSettings.favicon}
+                field="favicon"
+                folder="favicons"
+                previewType="favicon"
+                uploadingField={uploadingField}
+                onChange={(v) => setGeneralSettings({ ...generalSettings, favicon: v })}
+                onUpload={handleSettingUpload}
+              />
             </div>
           </div>
         )}
@@ -134,23 +210,72 @@ export default function SettingsPanel() {
             <h3 className="text-white font-semibold">Contact Information</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <IconInput icon={Mail} label="Primary Email" value={contactSettings.email} onChange={(v) => setContactSettings({ ...contactSettings, email: v })} />
-              <IconInput icon={Mail} label="Support Email" value={contactSettings.supportEmail} onChange={(v) => setContactSettings({ ...contactSettings, supportEmail: v })} />
-              <IconInput icon={Phone} label="Primary Phone" value={contactSettings.phone} onChange={(v) => setContactSettings({ ...contactSettings, phone: v })} />
-              <IconInput icon={Phone} label="Alternate Phone" value={contactSettings.alternatePhone} onChange={(v) => setContactSettings({ ...contactSettings, alternatePhone: v })} />
-              <IconInput icon={MapPin} label="Address" value={contactSettings.address} onChange={(v) => setContactSettings({ ...contactSettings, address: v })} />
-              <Input label="City" value={contactSettings.city} onChange={(v) => setContactSettings({ ...contactSettings, city: v })} />
-              <Input label="State" value={contactSettings.state} onChange={(v) => setContactSettings({ ...contactSettings, state: v })} />
-              <Input label="Pincode" value={contactSettings.pincode} onChange={(v) => setContactSettings({ ...contactSettings, pincode: v })} />
+              <IconInput
+                icon={Mail}
+                label="Primary Email"
+                value={contactSettings.email}
+                onChange={(v) => setContactSettings({ ...contactSettings, email: v })}
+              />
+
+              <IconInput
+                icon={Mail}
+                label="Support Email"
+                value={contactSettings.supportEmail}
+                onChange={(v) => setContactSettings({ ...contactSettings, supportEmail: v })}
+              />
+
+              <IconInput
+                icon={Phone}
+                label="Primary Phone"
+                value={contactSettings.phone}
+                onChange={(v) => setContactSettings({ ...contactSettings, phone: v })}
+              />
+
+              <IconInput
+                icon={Phone}
+                label="Alternate Phone"
+                value={contactSettings.alternatePhone}
+                onChange={(v) => setContactSettings({ ...contactSettings, alternatePhone: v })}
+              />
+
+              <IconInput
+                icon={MapPin}
+                label="Address"
+                value={contactSettings.address}
+                onChange={(v) => setContactSettings({ ...contactSettings, address: v })}
+              />
+
+              <Input
+                label="City"
+                value={contactSettings.city}
+                onChange={(v) => setContactSettings({ ...contactSettings, city: v })}
+              />
+
+              <Input
+                label="State"
+                value={contactSettings.state}
+                onChange={(v) => setContactSettings({ ...contactSettings, state: v })}
+              />
+
+              <Input
+                label="Pincode"
+                value={contactSettings.pincode}
+                onChange={(v) => setContactSettings({ ...contactSettings, pincode: v })}
+              />
             </div>
 
-            <Textarea label="Google Maps Embed URL" value={contactSettings.mapUrl} onChange={(v) => setContactSettings({ ...contactSettings, mapUrl: v })} />
+            <Textarea
+              label="Google Maps Embed URL"
+              value={contactSettings.mapUrl}
+              onChange={(v) => setContactSettings({ ...contactSettings, mapUrl: v })}
+            />
           </div>
         )}
 
         {activeTab === 'social' && (
           <div className="space-y-4">
             <h3 className="text-white font-semibold">Social Media Links</h3>
+
             {[
               ['facebook', 'Facebook', Facebook],
               ['twitter', 'Twitter / X', Twitter],
@@ -178,20 +303,47 @@ export default function SettingsPanel() {
               <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
               <div>
                 <p className="text-yellow-400 text-sm font-medium">Security Notice</p>
-                <p className="text-gray-400 text-xs mt-1">PayU Key/Salt should stay in Render backend env, not frontend settings.</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  PayU Key/Salt should stay in Render backend env, not frontend settings.
+                </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Select label="Payment Mode" value={paymentSettings.payuMode} onChange={(v) => setPaymentSettings({ ...paymentSettings, payuMode: v })} options={['test', 'live']} />
-              <Select label="Currency" value={paymentSettings.currency} onChange={(v) => setPaymentSettings({ ...paymentSettings, currency: v })} options={['INR', 'USD']} />
+              <Select
+                label="Payment Mode"
+                value={paymentSettings.payuMode}
+                onChange={(v) => setPaymentSettings({ ...paymentSettings, payuMode: v })}
+                options={['test', 'live']}
+              />
+
+              <Select
+                label="Currency"
+                value={paymentSettings.currency}
+                onChange={(v) => setPaymentSettings({ ...paymentSettings, currency: v })}
+                options={['INR', 'USD']}
+              />
             </div>
           </div>
         )}
 
         <div className="flex justify-end mt-8 pt-6 border-t border-white/5">
-          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-50">
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Save className="w-4 h-4" />Save Changes</>}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-primary flex items-center gap-2 disabled:opacity-50"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save Changes
+              </>
+            )}
           </button>
         </div>
       </motion.div>
@@ -203,7 +355,11 @@ function Input({ label, value = '', onChange }) {
   return (
     <div>
       <label className="block text-sm text-gray-400 mb-2">{label}</label>
-      <input value={value || ''} onChange={(e) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50" />
+      <input
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
+      />
     </div>
   )
 }
@@ -214,8 +370,52 @@ function IconInput({ icon: Icon, label, value = '', onChange }) {
       <label className="block text-sm text-gray-400 mb-2">{label}</label>
       <div className="relative">
         <Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-        <input value={value || ''} onChange={(e) => onChange(e.target.value)} className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50" />
+        <input
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
+        />
       </div>
+    </div>
+  )
+}
+
+function UploadUrlInput({
+  label,
+  value = '',
+  onChange,
+  onUpload,
+  field,
+  folder,
+  previewType,
+  uploadingField,
+}) {
+  return (
+    <div>
+      <IconInput icon={Image} label={label} value={value} onChange={onChange} />
+
+      <label className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 cursor-pointer text-sm">
+        <Upload className="w-4 h-4" />
+        {uploadingField === field ? 'Uploading...' : `Upload ${field}`}
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => onUpload(e.target.files?.[0], field, folder)}
+        />
+      </label>
+
+      {value && (
+        <img
+          src={value}
+          alt={`${field} preview`}
+          className={
+            previewType === 'favicon'
+              ? 'mt-3 h-12 w-12 rounded-lg border border-white/10 object-contain bg-white/5 p-2'
+              : 'mt-3 h-16 rounded-lg border border-white/10 object-contain bg-white/5 p-2'
+          }
+        />
+      )}
     </div>
   )
 }
@@ -224,7 +424,12 @@ function Textarea({ label, value = '', onChange }) {
   return (
     <div>
       <label className="block text-sm text-gray-400 mb-2">{label}</label>
-      <textarea rows={3} value={value || ''} onChange={(e) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50 resize-none" />
+      <textarea
+        rows={3}
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50 resize-none"
+      />
     </div>
   )
 }
@@ -233,8 +438,16 @@ function Select({ label, value, onChange, options }) {
   return (
     <div>
       <label className="block text-sm text-gray-400 mb-2">{label}</label>
-      <select value={value || ''} onChange={(e) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50">
-        {options.map((opt) => <option key={opt} value={opt} className="bg-dark-800">{opt}</option>)}
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt} className="bg-dark-800">
+            {opt}
+          </option>
+        ))}
       </select>
     </div>
   )
