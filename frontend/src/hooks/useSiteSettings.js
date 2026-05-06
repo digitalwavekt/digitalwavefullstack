@@ -5,13 +5,8 @@ export default function useSiteSettings() {
     const { settings, loading, fetchSettings } = useSiteStore()
 
     useEffect(() => {
-        if (!settings) {
-            fetchSettings()
-        }
-    }, [])
+        fetchSettings()
+    }, [fetchSettings])
 
-    return {
-        settings,
-        loading,
-    }
+    return { settings, loading, refreshSettings: () => fetchSettings(true) }
 }
