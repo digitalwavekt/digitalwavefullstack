@@ -1,44 +1,36 @@
 import { apiFetch } from './api'
 
-const API_URL = import.meta.env.VITE_API_URL
-
 export const uploadFile = async ({
     file,
     bucket = 'uploads',
     folder = 'general',
 }) => {
-    const signed = await apiFetch(
-        '/api/upload/signed-url',
-        {
-            method: 'POST',
-            body: JSON.stringify({
-                fileName: file.name,
-                bucket,
-                folder,
-            }),
-        }
-    )
+    if (!file) {
+        throw new Error('No file selected')
+    }
 
-    const {
-        signedUrl,
-        token,
-        path,
-        publicUrl,
-    } = signed.data
+    const signed = await apiFetch('/api/upload/signed-url', {
+        method: 'POST',
+        body: JSON.stringify({
+            fileName: file.name,
+            bucket,
+            folder,
+        }),
+    })
 
-    const uploadRes = await fetch(
-        `${signedUrl}&token=${token}`,
-        {
-            method: 'PUT',
-            headers: {
-                'Content-Type': file.type,
-            },
-            body: file,
-        }
-    )
+    const { signedUrl, path, publicUrl } = signed.data
+
+    const uploadRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': file.type || 'application/octet-stream',
+        },
+        body: file,
+    })
 
     if (!uploadRes.ok) {
-        throw new Error('Upload failed')
+        const errorText = await uploadRes.text().catch(() => '')
+        throw new Error(errorText || 'Upload failed')
     }
 
     return {
