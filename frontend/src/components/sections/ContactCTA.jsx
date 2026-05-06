@@ -1,12 +1,34 @@
 import { motion } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import { Link } from 'react-router-dom'
-import { MessageSquare, ArrowRight, Phone, Mail, MapPin } from 'lucide-react'
+import { ArrowRight, Phone, Mail, MapPin } from 'lucide-react'
 import useSiteSettings from '../../hooks/useSiteSettings'
 
 export default function ContactCTA() {
-  const { settings } = useSiteSettings()
   const [ref, inView] = useInView({ threshold: 0.2, triggerOnce: true })
+  const { settings } = useSiteSettings()
+
+  const contact = settings?.contact || {}
+
+  const contactItems = [
+    {
+      icon: Phone,
+      text: contact.phone || '+91 98765 43210',
+      color: 'text-blue-400',
+    },
+    {
+      icon: Mail,
+      text: contact.email || 'info@digitalwaveit.com',
+      color: 'text-purple-400',
+    },
+    {
+      icon: MapPin,
+      text: contact.address
+        ? `${contact.address}, ${contact.city || ''}, ${contact.state || ''} ${contact.pincode || ''}`
+        : 'India',
+      color: 'text-pink-400',
+    },
+  ]
 
   return (
     <section className="relative py-24 section-padding" ref={ref}>
@@ -20,32 +42,19 @@ export default function ContactCTA() {
             <span className="inline-block px-4 py-1.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20 mb-6">
               Get In Touch
             </span>
+
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
-              Let's Build Something <br />
+              Let&apos;s Build Something <br />
               <span className="gradient-text">Amazing Together</span>
             </h2>
+
             <p className="text-gray-400 text-lg mb-8 leading-relaxed">
               Whether you need a website, mobile app, CRM solution, or want to join our
-              internship program — we're here to help. Reach out and let's discuss your project.
+              internship program — we&apos;re here to help.
             </p>
 
             <div className="space-y-4 mb-8">
-              {[
-                {
-                  icon: Phone,
-                  text: settings?.contact?.phone || '+91 98765 43210',
-                },
-                {
-                  icon: Mail,
-                  text: settings?.contact?.email || 'info@digitalwaveit.com',
-                },
-                {
-                  icon: MapPin,
-                  text: settings?.contact
-                    ? `${settings.contact.city}, ${settings.contact.state}, ${settings.contact.country}`
-                    : 'India',
-                },
-              ].map((item, i) => (
+              {contactItems.map((item, i) => (
                 <div key={i} className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
                     <item.icon className={`w-5 h-5 ${item.color}`} />
