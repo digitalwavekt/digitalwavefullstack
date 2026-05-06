@@ -19,8 +19,10 @@ const formatCourse = (course) => ({
   pricePerMonth: course.price_per_month,
   students: course.students,
   status: course.status,
+  thumbnail: course.thumbnail,
   createdAt: course.created_at,
   updatedAt: course.updated_at,
+  thumbnail: course.thumbnail,
 })
 
 // Dashboard stats
@@ -188,6 +190,7 @@ router.post(
           price_per_month: Number(req.body.pricePerMonth || 0),
           students: Number(req.body.students || 0),
           status: req.body.status || 'active',
+          thumbnail: req.body.thumbnail || '',
         })
         .select()
         .single()
@@ -227,6 +230,7 @@ router.put(
       if (req.body.pricePerMonth !== undefined) updates.price_per_month = Number(req.body.pricePerMonth)
       if (req.body.students !== undefined) updates.students = Number(req.body.students)
       if (req.body.status !== undefined) updates.status = req.body.status
+      if (req.body.thumbnail !== undefined) updates.thumbnail = req.body.thumbnail
 
       const { data, error } = await supabase
         .from('courses')
