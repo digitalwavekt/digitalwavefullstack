@@ -1,65 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { 
-  Save, Image, MapPin, Phone, Mail, Globe, Upload,
-  Facebook, Twitter, Instagram, Linkedin, Youtube,
-  AlertTriangle
-} from 'lucide-react'
+import { Save, Image, MapPin, Phone, Mail, Globe, Facebook, Twitter, Instagram, Linkedin, Youtube, AlertTriangle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+const API_URL = import.meta.env.VITE_API_URL
 
 export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState('general')
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const [generalSettings, setGeneralSettings] = useState({
-    companyName: 'Digital Wave IT Solutions Pvt Ltd',
-    tagline: 'Transforming Ideas into Digital Reality',
-    description: 'Leading IT solutions provider offering website development, mobile apps, CRM solutions, college projects, and industry internship programs.',
-    logo: '',
-    favicon: '',
-  })
-
-  const [contactSettings, setContactSettings] = useState({
-    email: 'info@digitalwaveit.com',
-    supportEmail: 'support@digitalwaveit.com',
-    phone: '+91 98765 43210',
-    alternatePhone: '+91 98765 43211',
-    address: '123 Tech Park, Sector 62',
-    city: 'Noida',
-    state: 'Uttar Pradesh',
-    pincode: '201301',
-    country: 'India',
-    mapUrl: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3502.1234567890123!2d77.3616!3d28.6139',
-  })
-
-  const [socialSettings, setSocialSettings] = useState({
-    facebook: 'https://facebook.com/digitalwaveit',
-    twitter: 'https://twitter.com/digitalwaveit',
-    instagram: 'https://instagram.com/digitalwaveit',
-    linkedin: 'https://linkedin.com/company/digitalwaveit',
-    youtube: 'https://youtube.com/digitalwaveit',
-    github: 'https://github.com/digitalwaveit',
-  })
-
-  const [paymentSettings, setPaymentSettings] = useState({
-    payuKey: '',
-    payuSalt: '',
-    payuMode: 'test',
-    currency: 'INR',
-  })
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      toast.success('Settings saved successfully')
-    } catch (error) {
-      toast.error('Failed to save settings')
-    } finally {
-      setSaving(false)
-    }
-  }
+  const [generalSettings, setGeneralSettings] = useState({})
+  const [contactSettings, setContactSettings] = useState({})
+  const [socialSettings, setSocialSettings] = useState({})
+  const [paymentSettings, setPaymentSettings] = useState({ payuMode: 'test', currency: 'INR' })
 
   const tabs = [
     { id: 'general', label: 'General', icon: Globe },
@@ -67,6 +21,72 @@ export default function SettingsPanel() {
     { id: 'social', label: 'Social Links', icon: Facebook },
     { id: 'payment', label: 'Payment', icon: Mail },
   ]
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch(`${API_URL}/api/settings`)
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.message || 'Failed to load settings')
+
+      setGeneralSettings(data.data.general || {})
+      setContactSettings(data.data.contact || {})
+      setSocialSettings(data.data.social || {})
+      setPaymentSettings(data.data.payment || { payuMode: 'test', currency: 'INR' })
+    } catch (error) {
+      toast.error(error.message || 'Failed to load settings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const getCurrentPayload = () => {
+    if (activeTab === 'general') return generalSettings
+    if (activeTab === 'contact') return contactSettings
+    if (activeTab === 'social') return socialSettings
+    if (activeTab === 'payment') {
+      return {
+        payuMode: paymentSettings.payuMode,
+        currency: paymentSettings.currency,
+      }
+    }
+    return {}
+  }
+
+  const handleSave = async () => {
+    try {
+      setSaving(true)
+
+      const res = await fetch(`${API_URL}/api/settings/${activeTab}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(getCurrentPayload()),
+      })
+
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.message || 'Save failed')
+
+      toast.success('Settings saved successfully')
+      await loadSettings()
+    } catch (error) {
+      toast.error(error.message || 'Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3 text-white">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        Loading settings...
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -80,11 +100,10 @@ export default function SettingsPanel() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-              activeTab === tab.id
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${activeTab === tab.id
                 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
+              }`}
           >
             <tab.icon className="w-4 h-4" />
             {tab.label}
@@ -100,293 +119,129 @@ export default function SettingsPanel() {
       >
         {activeTab === 'general' && (
           <div className="space-y-6">
-            <h3 className="text-white font-semibold mb-4">General Settings</h3>
+            <h3 className="text-white font-semibold">General Settings</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Company Name</label>
-                <input
-                  type="text"
-                  value={generalSettings.companyName}
-                  onChange={(e) => setGeneralSettings({ ...generalSettings, companyName: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Tagline</label>
-                <input
-                  type="text"
-                  value={generalSettings.tagline}
-                  onChange={(e) => setGeneralSettings({ ...generalSettings, tagline: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                />
-              </div>
+              <Input label="Company Name" value={generalSettings.companyName} onChange={(v) => setGeneralSettings({ ...generalSettings, companyName: v })} />
+              <Input label="Tagline" value={generalSettings.tagline} onChange={(v) => setGeneralSettings({ ...generalSettings, tagline: v })} />
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Meta Description</label>
-              <textarea
-                rows={3}
-                value={generalSettings.description}
-                onChange={(e) => setGeneralSettings({ ...generalSettings, description: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50 resize-none"
-              />
-            </div>
+            <Textarea label="Meta Description" value={generalSettings.description} onChange={(v) => setGeneralSettings({ ...generalSettings, description: v })} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Logo URL</label>
-                <div className="relative">
-                  <Image className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="text"
-                    value={generalSettings.logo}
-                    onChange={(e) => setGeneralSettings({ ...generalSettings, logo: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
-                    placeholder="https://..."
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Favicon URL</label>
-                <div className="relative">
-                  <Image className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="text"
-                    value={generalSettings.favicon}
-                    onChange={(e) => setGeneralSettings({ ...generalSettings, favicon: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
-                    placeholder="https://..."
-                  />
-                </div>
-              </div>
+              <IconInput icon={Image} label="Logo URL" value={generalSettings.logo} onChange={(v) => setGeneralSettings({ ...generalSettings, logo: v })} />
+              <IconInput icon={Image} label="Favicon URL" value={generalSettings.favicon} onChange={(v) => setGeneralSettings({ ...generalSettings, favicon: v })} />
             </div>
           </div>
         )}
 
         {activeTab === 'contact' && (
           <div className="space-y-6">
-            <h3 className="text-white font-semibold mb-4">Contact Information</h3>
+            <h3 className="text-white font-semibold">Contact Information</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Primary Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="email"
-                    value={contactSettings.email}
-                    onChange={(e) => setContactSettings({ ...contactSettings, email: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Support Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="email"
-                    value={contactSettings.supportEmail}
-                    onChange={(e) => setContactSettings({ ...contactSettings, supportEmail: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Primary Phone</label>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="tel"
-                    value={contactSettings.phone}
-                    onChange={(e) => setContactSettings({ ...contactSettings, phone: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Alternate Phone</label>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="tel"
-                    value={contactSettings.alternatePhone}
-                    onChange={(e) => setContactSettings({ ...contactSettings, alternatePhone: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                  />
-                </div>
-              </div>
+              <IconInput icon={Mail} label="Primary Email" value={contactSettings.email} onChange={(v) => setContactSettings({ ...contactSettings, email: v })} />
+              <IconInput icon={Mail} label="Support Email" value={contactSettings.supportEmail} onChange={(v) => setContactSettings({ ...contactSettings, supportEmail: v })} />
+              <IconInput icon={Phone} label="Primary Phone" value={contactSettings.phone} onChange={(v) => setContactSettings({ ...contactSettings, phone: v })} />
+              <IconInput icon={Phone} label="Alternate Phone" value={contactSettings.alternatePhone} onChange={(v) => setContactSettings({ ...contactSettings, alternatePhone: v })} />
+              <IconInput icon={MapPin} label="Address" value={contactSettings.address} onChange={(v) => setContactSettings({ ...contactSettings, address: v })} />
+              <Input label="City" value={contactSettings.city} onChange={(v) => setContactSettings({ ...contactSettings, city: v })} />
+              <Input label="State" value={contactSettings.state} onChange={(v) => setContactSettings({ ...contactSettings, state: v })} />
+              <Input label="Pincode" value={contactSettings.pincode} onChange={(v) => setContactSettings({ ...contactSettings, pincode: v })} />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Address</label>
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="text"
-                    value={contactSettings.address}
-                    onChange={(e) => setContactSettings({ ...contactSettings, address: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">City</label>
-                <input
-                  type="text"
-                  value={contactSettings.city}
-                  onChange={(e) => setContactSettings({ ...contactSettings, city: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">State</label>
-                <input
-                  type="text"
-                  value={contactSettings.state}
-                  onChange={(e) => setContactSettings({ ...contactSettings, state: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Pincode</label>
-                <input
-                  type="text"
-                  value={contactSettings.pincode}
-                  onChange={(e) => setContactSettings({ ...contactSettings, pincode: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Google Maps Embed URL</label>
-              <textarea
-                rows={3}
-                value={contactSettings.mapUrl}
-                onChange={(e) => setContactSettings({ ...contactSettings, mapUrl: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50 resize-none"
-                placeholder="Paste Google Maps embed URL here..."
-              />
-            </div>
+            <Textarea label="Google Maps Embed URL" value={contactSettings.mapUrl} onChange={(v) => setContactSettings({ ...contactSettings, mapUrl: v })} />
           </div>
         )}
 
         {activeTab === 'social' && (
-          <div className="space-y-6">
-            <h3 className="text-white font-semibold mb-4">Social Media Links</h3>
-
-            <div className="space-y-4">
-              {[
-                { key: 'facebook', label: 'Facebook', icon: Facebook, placeholder: 'https://facebook.com/...' },
-                { key: 'twitter', label: 'Twitter / X', icon: Twitter, placeholder: 'https://twitter.com/...' },
-                { key: 'instagram', label: 'Instagram', icon: Instagram, placeholder: 'https://instagram.com/...' },
-                { key: 'linkedin', label: 'LinkedIn', icon: Linkedin, placeholder: 'https://linkedin.com/company/...' },
-                { key: 'youtube', label: 'YouTube', icon: Youtube, placeholder: 'https://youtube.com/...' },
-                { key: 'github', label: 'GitHub', icon: Globe, placeholder: 'https://github.com/...' },
-              ].map((social) => (
-                <div key={social.key}>
-                  <label className="block text-sm text-gray-400 mb-2">{social.label}</label>
-                  <div className="relative">
-                    <social.icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                    <input
-                      type="url"
-                      value={socialSettings[social.key]}
-                      onChange={(e) => setSocialSettings({ ...socialSettings, [social.key]: e.target.value })}
-                      className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
-                      placeholder={social.placeholder}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="space-y-4">
+            <h3 className="text-white font-semibold">Social Media Links</h3>
+            {[
+              ['facebook', 'Facebook', Facebook],
+              ['twitter', 'Twitter / X', Twitter],
+              ['instagram', 'Instagram', Instagram],
+              ['linkedin', 'LinkedIn', Linkedin],
+              ['youtube', 'YouTube', Youtube],
+              ['github', 'GitHub', Globe],
+            ].map(([key, label, Icon]) => (
+              <IconInput
+                key={key}
+                icon={Icon}
+                label={label}
+                value={socialSettings[key]}
+                onChange={(v) => setSocialSettings({ ...socialSettings, [key]: v })}
+              />
+            ))}
           </div>
         )}
 
         {activeTab === 'payment' && (
           <div className="space-y-6">
-            <h3 className="text-white font-semibold mb-4">Payment Gateway Settings</h3>
+            <h3 className="text-white font-semibold">Payment Gateway Settings</h3>
 
-            <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-3 mb-6">
+            <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-yellow-400 text-sm font-medium">Sensitive Information</p>
-                <p className="text-gray-400 text-xs mt-1">These credentials are encrypted and stored securely. Only update if you have new PayU credentials.</p>
+                <p className="text-yellow-400 text-sm font-medium">Security Notice</p>
+                <p className="text-gray-400 text-xs mt-1">PayU Key/Salt should stay in Render backend env, not frontend settings.</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">PayU Merchant Key</label>
-                <input
-                  type="password"
-                  value={paymentSettings.payuKey}
-                  onChange={(e) => setPaymentSettings({ ...paymentSettings, payuKey: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                  placeholder="Enter PayU Key"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">PayU Salt</label>
-                <input
-                  type="password"
-                  value={paymentSettings.payuSalt}
-                  onChange={(e) => setPaymentSettings({ ...paymentSettings, payuSalt: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                  placeholder="Enter PayU Salt"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Payment Mode</label>
-                <select
-                  value={paymentSettings.payuMode}
-                  onChange={(e) => setPaymentSettings({ ...paymentSettings, payuMode: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                >
-                  <option value="test" className="bg-dark-800">Test Mode</option>
-                  <option value="live" className="bg-dark-800">Live Mode</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Currency</label>
-                <select
-                  value={paymentSettings.currency}
-                  onChange={(e) => setPaymentSettings({ ...paymentSettings, currency: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50"
-                >
-                  <option value="INR" className="bg-dark-800">INR (₹)</option>
-                  <option value="USD" className="bg-dark-800">USD ($)</option>
-                </select>
-              </div>
+              <Select label="Payment Mode" value={paymentSettings.payuMode} onChange={(v) => setPaymentSettings({ ...paymentSettings, payuMode: v })} options={['test', 'live']} />
+              <Select label="Currency" value={paymentSettings.currency} onChange={(v) => setPaymentSettings({ ...paymentSettings, currency: v })} options={['INR', 'USD']} />
             </div>
           </div>
         )}
 
         <div className="flex justify-end mt-8 pt-6 border-t border-white/5">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="btn-primary flex items-center gap-2 disabled:opacity-50"
-          >
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Save Changes
-              </>
-            )}
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-50">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Save className="w-4 h-4" />Save Changes</>}
           </button>
         </div>
       </motion.div>
+    </div>
+  )
+}
+
+function Input({ label, value = '', onChange }) {
+  return (
+    <div>
+      <label className="block text-sm text-gray-400 mb-2">{label}</label>
+      <input value={value || ''} onChange={(e) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50" />
+    </div>
+  )
+}
+
+function IconInput({ icon: Icon, label, value = '', onChange }) {
+  return (
+    <div>
+      <label className="block text-sm text-gray-400 mb-2">{label}</label>
+      <div className="relative">
+        <Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <input value={value || ''} onChange={(e) => onChange(e.target.value)} className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50" />
+      </div>
+    </div>
+  )
+}
+
+function Textarea({ label, value = '', onChange }) {
+  return (
+    <div>
+      <label className="block text-sm text-gray-400 mb-2">{label}</label>
+      <textarea rows={3} value={value || ''} onChange={(e) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50 resize-none" />
+    </div>
+  )
+}
+
+function Select({ label, value, onChange, options }) {
+  return (
+    <div>
+      <label className="block text-sm text-gray-400 mb-2">{label}</label>
+      <select value={value || ''} onChange={(e) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-blue-500/50">
+        {options.map((opt) => <option key={opt} value={opt} className="bg-dark-800">{opt}</option>)}
+      </select>
     </div>
   )
 }
