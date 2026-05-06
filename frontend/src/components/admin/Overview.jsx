@@ -13,8 +13,8 @@ import {
   Loader2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { apiFetch } from '../../lib/api'
 
-const API_URL = import.meta.env.VITE_API_URL
 
 export default function Overview() {
   const [loading, setLoading] = useState(true)
@@ -31,13 +31,7 @@ export default function Overview() {
     try {
       setLoading(true)
 
-      const res = await fetch(`${API_URL}/api/admin/stats`)
-      const data = await res.json()
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to fetch stats')
-      }
-
+      const data = await apiFetch('/api/admin/stats')
       setStatsData(data.data)
     } catch (error) {
       toast.error(error.message || 'Failed to load dashboard')

@@ -9,8 +9,8 @@ import {
   Loader2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { apiFetch } from '../../lib/api'
 
-const API_URL = import.meta.env.VITE_API_URL
 
 export default function CollegeProjects() {
   const [projects, setProjects] = useState([])
@@ -27,13 +27,7 @@ export default function CollegeProjects() {
     try {
       setLoading(true)
 
-      const res = await fetch(`${API_URL}/api/college-project`)
-      const data = await res.json()
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to fetch projects')
-      }
-
+      const data = await apiFetch('/api/college-project')
       setProjects(data.data || [])
     } catch (error) {
       toast.error(error.message || 'Failed to load projects')
@@ -64,22 +58,10 @@ export default function CollegeProjects() {
     try {
       setUpdatingId(id)
 
-      const res = await fetch(
-        `${API_URL}/api/college-project/${id}/status`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ status: newStatus }),
-        }
-      )
-
-      const data = await res.json()
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Status update failed')
-      }
+      await apiFetch(`/api/college-project/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: newStatus }),
+      })
 
       toast.success(`Project marked as ${newStatus}`)
       fetchProjects()

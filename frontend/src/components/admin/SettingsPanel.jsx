@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Save, Image, MapPin, Phone, Mail, Globe, Facebook, Twitter, Instagram, Linkedin, Youtube, AlertTriangle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { apiFetch } from '../../lib/api'
 
-const API_URL = import.meta.env.VITE_API_URL
 
 export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState('general')
@@ -25,9 +25,7 @@ export default function SettingsPanel() {
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`${API_URL}/api/settings`)
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.message || 'Failed to load settings')
+      const data = await apiFetch('/api/settings')
 
       setGeneralSettings(data.data.general || {})
       setContactSettings(data.data.contact || {})
@@ -61,14 +59,10 @@ export default function SettingsPanel() {
     try {
       setSaving(true)
 
-      const res = await fetch(`${API_URL}/api/settings/${activeTab}`, {
+      await apiFetch(`/api/settings/${activeTab}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(getCurrentPayload()),
       })
-
-      const data = await res.json()
-      if (!res.ok || !data.success) throw new Error(data.message || 'Save failed')
 
       toast.success('Settings saved successfully')
       await loadSettings()

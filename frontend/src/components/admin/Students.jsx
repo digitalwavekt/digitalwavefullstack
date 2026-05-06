@@ -6,8 +6,8 @@ import {
   Loader2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { apiFetch } from '../../lib/api'
 
-const API_URL = import.meta.env.VITE_API_URL
 
 export default function Students() {
   const [students, setStudents] = useState([])
@@ -20,13 +20,7 @@ export default function Students() {
     try {
       setLoading(true)
 
-      const res = await fetch(`${API_URL}/api/admin/students`)
-      const data = await res.json()
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to fetch students')
-      }
-
+      const data = await apiFetch('/api/admin/students')
       setStudents(data.data || [])
     } catch (error) {
       toast.error(error.message || 'Failed to load students')

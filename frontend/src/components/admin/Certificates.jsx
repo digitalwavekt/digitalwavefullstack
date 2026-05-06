@@ -13,8 +13,8 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { apiFetch } from '../../lib/api'
 
-const API_URL = import.meta.env.VITE_API_URL
 
 export default function Certificates() {
   const [certificates, setCertificates] = useState([])
@@ -37,21 +37,10 @@ export default function Certificates() {
     try {
       setLoading(true)
 
-      const [certRes, studentRes] = await Promise.all([
-        fetch(`${API_URL}/api/certificate/all`),
-        fetch(`${API_URL}/api/student/all`),
+      const [certData, studentData] = await Promise.all([
+        apiFetch('/api/certificate/all'),
+        apiFetch('/api/admin/students'),
       ])
-
-      const certData = await certRes.json()
-      const studentData = await studentRes.json()
-
-      if (!certRes.ok || !certData.success) {
-        throw new Error(certData.message || 'Failed to fetch certificates')
-      }
-
-      if (!studentRes.ok || !studentData.success) {
-        throw new Error(studentData.message || 'Failed to fetch students')
-      }
 
       setCertificates(certData.data || [])
       setStudents(studentData.data || [])
@@ -70,15 +59,9 @@ export default function Certificates() {
     try {
       setIssuingId(studentId)
 
-      const res = await fetch(`${API_URL}/api/certificate/issue/${studentId}`, {
+      await apiFetch(`/api/certificate/issue/${studentId}`, {
         method: 'POST',
       })
-
-      const data = await res.json()
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to issue certificate')
-      }
 
       toast.success('Certificate issued successfully')
       fetchData()
