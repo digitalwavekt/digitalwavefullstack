@@ -13,9 +13,33 @@ import {
   Loader2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { apiFetch } from '../../lib/api'
 
-const API_URL = import.meta.env.VITE_API_URL
+const API_URL =
+  import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com'
+
+async function authFetch(path, options = {}) {
+  const token =
+    localStorage.getItem('adminToken') ||
+    localStorage.getItem('token') ||
+    localStorage.getItem('accessToken')
+
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  const data = await res.json().catch(() => ({}))
+
+  if (!res.ok || data.success === false) {
+    throw new Error(data.message || data.error || 'Request failed')
+  }
+
+  return data
+}
 
 export default function Overview() {
   const [loading, setLoading] = useState(true)
@@ -32,14 +56,16 @@ export default function Overview() {
     try {
       setLoading(true)
 
-      const res = await fetch(`${API_URL}/api/admin/stats`)
-      const data = await res.json()
+      const data = await authFetch('/api/admin/stats')
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to fetch stats')
-      }
-
-      setStatsData(data.data)
+      setStatsData({
+        totalStudents: data.data?.totalStudents || 0,
+        activeCourses: data.data?.activeCourses || 0,
+        totalProjects: data.data?.totalProjects || 0,
+        monthlyRevenue: data.data?.monthlyRevenue || 0,
+        recentStudents: data.data?.recentStudents || [],
+        pendingProjects: data.data?.pendingProjects || [],
+      })
     } catch (error) {
       toast.error(error.message || 'Failed to load dashboard')
     } finally {
@@ -109,30 +135,34 @@ export default function Overview() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, i) => (
-          <motion.div
-            key={stat.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className={`glass rounded-2xl p-5 border ${stat.borderColor} ${stat.bgColor}`}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div
-                className={`w-10 h-10 rounded-lg ${stat.bgColor} border ${stat.borderColor} flex items-center justify-center`}
-              >
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-              <div className="flex items-center gap-1 text-xs font-medium text-green-400">
-                <ArrowUpRight className="w-3 h-3" />
-                {stat.change}
-              </div>
-            </div>
+        {stats.map((stat, i) => {
+          const StatIcon = stat.icon
 
-            <p className="text-2xl font-bold text-white">{stat.value}</p>
-            <p className="text-gray-400 text-xs mt-1">{stat.title}</p>
-          </motion.div>
-        ))}
+          return (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className={`glass rounded-2xl p-5 border ${stat.borderColor} ${stat.bgColor}`}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div
+                  className={`w-10 h-10 rounded-lg ${stat.bgColor} border ${stat.borderColor} flex items-center justify-center`}
+                >
+                  <StatIcon className={`w-5 h-5 ${stat.color}`} />
+                </div>
+                <div className="flex items-center gap-1 text-xs font-medium text-green-400">
+                  <ArrowUpRight className="w-3 h-3" />
+                  {stat.change}
+                </div>
+              </div>
+
+              <p className="text-2xl font-bold text-white">{stat.value}</p>
+              <p className="text-gray-400 text-xs mt-1">{stat.title}</p>
+            </motion.div>
+          )
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -151,7 +181,7 @@ export default function Overview() {
             ) : (
               statsData.recentStudents.map((student, i) => (
                 <div
-                  key={`${student.email || student.name}-${i}`}
+                  key={`${student.email || student.name || 'student'}-${i}`}
                   className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5"
                 >
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
@@ -169,10 +199,10 @@ export default function Overview() {
 
                   <span
                     className={`px-2 py-1 rounded-full text-xs font-medium ${student.status === 'active'
-                      ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                      : student.status === 'completed'
-                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                        : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                        : student.status === 'completed'
+                          ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                          : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
                       }`}
                   >
                     {student.status || 'pending'}
@@ -189,7 +219,9 @@ export default function Overview() {
           className="glass rounded-2xl p-6 border border-white/10"
         >
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-white font-semibold">Pending College Projects</h3>
+            <h3 className="text-white font-semibold">
+              Pending College Projects
+            </h3>
           </div>
 
           <div className="space-y-3">
@@ -198,7 +230,7 @@ export default function Overview() {
             ) : (
               statsData.pendingProjects.map((project, i) => (
                 <div
-                  key={`${project.student || project.project}-${i}`}
+                  key={`${project.student || project.project || 'project'}-${i}`}
                   className="p-4 rounded-xl bg-white/5 border border-white/5"
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -222,12 +254,14 @@ export default function Overview() {
                         Payment Pending
                       </span>
                     )}
+
                     {project.status === 'in_progress' && (
                       <span className="flex items-center gap-1 text-xs text-blue-400">
                         <Clock className="w-3 h-3" />
                         In Progress
                       </span>
                     )}
+
                     {project.status === 'review' && (
                       <span className="flex items-center gap-1 text-xs text-purple-400">
                         <CheckCircle2 className="w-3 h-3" />
@@ -255,15 +289,19 @@ export default function Overview() {
             { label: 'Courses', icon: BookOpen },
             { label: 'Certificates', icon: CheckCircle2 },
             { label: 'Reports', icon: TrendingUp },
-          ].map((action) => (
-            <button
-              key={action.label}
-              className="p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-center"
-            >
-              <action.icon className="w-6 h-6 text-blue-400 mx-auto mb-2" />
-              <span className="text-gray-300 text-xs">{action.label}</span>
-            </button>
-          ))}
+          ].map((action) => {
+            const ActionIcon = action.icon
+
+            return (
+              <button
+                key={action.label}
+                className="p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-center"
+              >
+                <ActionIcon className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+                <span className="text-gray-300 text-xs">{action.label}</span>
+              </button>
+            )
+          })}
         </div>
       </motion.div>
     </div>

@@ -17,8 +17,34 @@ import {
   Upload,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { apiFetch } from '../../lib/api'
 import { uploadFile } from '../../lib/uploadFile'
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com'
+
+async function authFetch(path, options = {}) {
+  const token =
+    localStorage.getItem('adminToken') ||
+    localStorage.getItem('token') ||
+    localStorage.getItem('accessToken')
+
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  const data = await res.json().catch(() => ({}))
+
+  if (!res.ok) {
+    throw new Error(data.message || data.error || 'Request failed')
+  }
+
+  return data
+}
 
 export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState('general')
@@ -44,12 +70,21 @@ export default function SettingsPanel() {
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const data = await apiFetch('/api/settings')
 
-      setGeneralSettings(data.data.general || {})
-      setContactSettings(data.data.contact || {})
-      setSocialSettings(data.data.social || {})
-      setPaymentSettings(data.data.payment || { payuMode: 'test', currency: 'INR' })
+      // If your backend route is /api/admin/settings, change this line only.
+      const data = await authFetch('/api/settings')
+
+      const settingsData = data.data || data.settings || data || {}
+
+      setGeneralSettings(settingsData.general || {})
+      setContactSettings(settingsData.contact || {})
+      setSocialSettings(settingsData.social || {})
+      setPaymentSettings(
+        settingsData.payment || {
+          payuMode: 'test',
+          currency: 'INR',
+        }
+      )
     } catch (error) {
       toast.error(error.message || 'Failed to load settings')
     } finally {
@@ -65,12 +100,14 @@ export default function SettingsPanel() {
     if (activeTab === 'general') return generalSettings
     if (activeTab === 'contact') return contactSettings
     if (activeTab === 'social') return socialSettings
+
     if (activeTab === 'payment') {
       return {
         payuMode: paymentSettings.payuMode,
         currency: paymentSettings.currency,
       }
     }
+
     return {}
   }
 
@@ -78,7 +115,8 @@ export default function SettingsPanel() {
     try {
       setSaving(true)
 
-      await apiFetch(`/api/settings/${activeTab}`, {
+      // If your backend route is /api/admin/settings/:tab, change this line only.
+      await authFetch(`/api/settings/${activeTab}`, {
         method: 'PUT',
         body: JSON.stringify(getCurrentPayload()),
       })
@@ -130,23 +168,29 @@ export default function SettingsPanel() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <p className="text-gray-400 text-sm">Manage website configuration and preferences</p>
+        <p className="text-gray-400 text-sm">
+          Manage website configuration and preferences
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${activeTab === tab.id
-                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const TabIcon = tab.icon
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${activeTab === tab.id
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+            >
+              <TabIcon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          )
+        })}
       </div>
 
       <motion.div
@@ -163,20 +207,26 @@ export default function SettingsPanel() {
               <Input
                 label="Company Name"
                 value={generalSettings.companyName}
-                onChange={(v) => setGeneralSettings({ ...generalSettings, companyName: v })}
+                onChange={(v) =>
+                  setGeneralSettings({ ...generalSettings, companyName: v })
+                }
               />
 
               <Input
                 label="Tagline"
                 value={generalSettings.tagline}
-                onChange={(v) => setGeneralSettings({ ...generalSettings, tagline: v })}
+                onChange={(v) =>
+                  setGeneralSettings({ ...generalSettings, tagline: v })
+                }
               />
             </div>
 
             <Textarea
               label="Meta Description"
               value={generalSettings.description}
-              onChange={(v) => setGeneralSettings({ ...generalSettings, description: v })}
+              onChange={(v) =>
+                setGeneralSettings({ ...generalSettings, description: v })
+              }
             />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -187,7 +237,9 @@ export default function SettingsPanel() {
                 folder="logos"
                 previewType="logo"
                 uploadingField={uploadingField}
-                onChange={(v) => setGeneralSettings({ ...generalSettings, logo: v })}
+                onChange={(v) =>
+                  setGeneralSettings({ ...generalSettings, logo: v })
+                }
                 onUpload={handleSettingUpload}
               />
 
@@ -198,7 +250,9 @@ export default function SettingsPanel() {
                 folder="favicons"
                 previewType="favicon"
                 uploadingField={uploadingField}
-                onChange={(v) => setGeneralSettings({ ...generalSettings, favicon: v })}
+                onChange={(v) =>
+                  setGeneralSettings({ ...generalSettings, favicon: v })
+                }
                 onUpload={handleSettingUpload}
               />
             </div>
@@ -214,60 +268,84 @@ export default function SettingsPanel() {
                 icon={Mail}
                 label="Primary Email"
                 value={contactSettings.email}
-                onChange={(v) => setContactSettings({ ...contactSettings, email: v })}
+                onChange={(v) =>
+                  setContactSettings({ ...contactSettings, email: v })
+                }
               />
 
               <IconInput
                 icon={Mail}
                 label="Support Email"
                 value={contactSettings.supportEmail}
-                onChange={(v) => setContactSettings({ ...contactSettings, supportEmail: v })}
+                onChange={(v) =>
+                  setContactSettings({
+                    ...contactSettings,
+                    supportEmail: v,
+                  })
+                }
               />
 
               <IconInput
                 icon={Phone}
                 label="Primary Phone"
                 value={contactSettings.phone}
-                onChange={(v) => setContactSettings({ ...contactSettings, phone: v })}
+                onChange={(v) =>
+                  setContactSettings({ ...contactSettings, phone: v })
+                }
               />
 
               <IconInput
                 icon={Phone}
                 label="Alternate Phone"
                 value={contactSettings.alternatePhone}
-                onChange={(v) => setContactSettings({ ...contactSettings, alternatePhone: v })}
+                onChange={(v) =>
+                  setContactSettings({
+                    ...contactSettings,
+                    alternatePhone: v,
+                  })
+                }
               />
 
               <IconInput
                 icon={MapPin}
                 label="Address"
                 value={contactSettings.address}
-                onChange={(v) => setContactSettings({ ...contactSettings, address: v })}
+                onChange={(v) =>
+                  setContactSettings({ ...contactSettings, address: v })
+                }
               />
 
               <Input
                 label="City"
                 value={contactSettings.city}
-                onChange={(v) => setContactSettings({ ...contactSettings, city: v })}
+                onChange={(v) =>
+                  setContactSettings({ ...contactSettings, city: v })
+                }
               />
 
               <Input
                 label="State"
                 value={contactSettings.state}
-                onChange={(v) => setContactSettings({ ...contactSettings, state: v })}
+                onChange={(v) =>
+                  setContactSettings({ ...contactSettings, state: v })
+                }
               />
 
               <Input
                 label="Pincode"
                 value={contactSettings.pincode}
-                onChange={(v) => setContactSettings({ ...contactSettings, pincode: v })}
+                onChange={(v) =>
+                  setContactSettings({ ...contactSettings, pincode: v })
+                }
               />
             </div>
 
             <Textarea
               label="Google Maps Embed URL"
               value={contactSettings.mapUrl}
-              onChange={(v) => setContactSettings({ ...contactSettings, mapUrl: v })}
+              onChange={(v) =>
+                setContactSettings({ ...contactSettings, mapUrl: v })
+              }
             />
           </div>
         )}
@@ -289,7 +367,9 @@ export default function SettingsPanel() {
                 icon={Icon}
                 label={label}
                 value={socialSettings[key]}
-                onChange={(v) => setSocialSettings({ ...socialSettings, [key]: v })}
+                onChange={(v) =>
+                  setSocialSettings({ ...socialSettings, [key]: v })
+                }
               />
             ))}
           </div>
@@ -297,14 +377,19 @@ export default function SettingsPanel() {
 
         {activeTab === 'payment' && (
           <div className="space-y-6">
-            <h3 className="text-white font-semibold">Payment Gateway Settings</h3>
+            <h3 className="text-white font-semibold">
+              Payment Gateway Settings
+            </h3>
 
             <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-yellow-400 text-sm font-medium">Security Notice</p>
+                <p className="text-yellow-400 text-sm font-medium">
+                  Security Notice
+                </p>
                 <p className="text-gray-400 text-xs mt-1">
-                  PayU Key/Salt should stay in Render backend env, not frontend settings.
+                  PayU Key/Salt should stay in Render backend env, not frontend
+                  settings.
                 </p>
               </div>
             </div>
@@ -313,14 +398,18 @@ export default function SettingsPanel() {
               <Select
                 label="Payment Mode"
                 value={paymentSettings.payuMode}
-                onChange={(v) => setPaymentSettings({ ...paymentSettings, payuMode: v })}
+                onChange={(v) =>
+                  setPaymentSettings({ ...paymentSettings, payuMode: v })
+                }
                 options={['test', 'live']}
               />
 
               <Select
                 label="Currency"
                 value={paymentSettings.currency}
-                onChange={(v) => setPaymentSettings({ ...paymentSettings, currency: v })}
+                onChange={(v) =>
+                  setPaymentSettings({ ...paymentSettings, currency: v })
+                }
                 options={['INR', 'USD']}
               />
             </div>
@@ -395,12 +484,19 @@ function UploadUrlInput({
       <IconInput icon={Image} label={label} value={value} onChange={onChange} />
 
       <label className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 cursor-pointer text-sm">
-        <Upload className="w-4 h-4" />
+        {uploadingField === field ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Upload className="w-4 h-4" />
+        )}
+
         {uploadingField === field ? 'Uploading...' : `Upload ${field}`}
+
         <input
           type="file"
           accept="image/*"
           className="hidden"
+          disabled={uploadingField === field}
           onChange={(e) => onUpload(e.target.files?.[0], field, folder)}
         />
       </label>
@@ -434,7 +530,7 @@ function Textarea({ label, value = '', onChange }) {
   )
 }
 
-function Select({ label, value, onChange, options }) {
+function Select({ label, value = '', onChange, options }) {
   return (
     <div>
       <label className="block text-sm text-gray-400 mb-2">{label}</label>
