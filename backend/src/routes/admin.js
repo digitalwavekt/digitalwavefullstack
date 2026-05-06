@@ -22,7 +22,6 @@ const formatCourse = (course) => ({
   thumbnail: course.thumbnail,
   createdAt: course.created_at,
   updatedAt: course.updated_at,
-  thumbnail: course.thumbnail,
 })
 
 // Dashboard stats

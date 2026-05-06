@@ -1,10 +1,17 @@
+import { useAuthStore } from '../hooks/useAuthStore'
+
 const API_URL = import.meta.env.VITE_API_URL
 
-export const apiFetch = async (
-    endpoint,
-    options = {}
-) => {
-    const token = localStorage.getItem('token')
+export const apiFetch = async (endpoint, options = {}) => {
+    const storeToken = useAuthStore.getState()?.token
+
+    const localToken =
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.token ||
+        JSON.parse(localStorage.getItem('authStore') || '{}')?.state?.token
+
+    const token = storeToken || localToken
 
     const headers = {
         'Content-Type': 'application/json',
@@ -15,26 +22,15 @@ export const apiFetch = async (
         headers.Authorization = `Bearer ${token}`
     }
 
-    const response = await fetch(
-        `${API_URL}${endpoint}`,
-        {
-            ...options,
-            headers,
-        }
-    )
+    const res = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+    })
 
-    let data = null
+    const data = await res.json().catch(() => ({}))
 
-    try {
-        data = await response.json()
-    } catch {
-        data = null
-    }
-
-    if (!response.ok) {
-        throw new Error(
-            data?.message || 'Request failed'
-        )
+    if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Request failed')
     }
 
     return data

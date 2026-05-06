@@ -11,6 +11,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+
   const navigate = useNavigate()
   const { setUser, setToken } = useAuthStore()
 
@@ -22,21 +23,37 @@ export default function AdminLogin() {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/admin-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
       })
 
       const data = await res.json()
 
-      if (data.success) {
-        setToken(data.token)
-        setUser(data.user)
-        toast.success('Login successful!')
-        navigate('/admin/dashboard')
-      } else {
-        toast.error(data.message || 'Invalid credentials')
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Invalid credentials')
       }
+
+      const accessToken = data.token || data.accessToken
+
+      if (!accessToken) {
+        throw new Error('Login successful but token missing')
+      }
+
+      localStorage.setItem('token', accessToken)
+
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken)
+      }
+
+      setToken(accessToken)
+      setUser(data.user)
+
+      toast.success('Login successful!')
+      navigate('/admin/dashboard')
     } catch (error) {
-      toast.error('Login failed. Please try again.')
+      toast.error(error.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -55,7 +72,6 @@ export default function AdminLogin() {
           className="w-full max-w-md"
         >
           <div className="glass rounded-3xl p-8 border border-white/10">
-            {/* Logo */}
             <div className="text-center mb-8">
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-4">
                 <Shield className="w-8 h-8 text-white" />
@@ -92,6 +108,7 @@ export default function AdminLogin() {
                     className="w-full pl-12 pr-12 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 transition-colors"
                     placeholder="Enter your password"
                   />
+
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
