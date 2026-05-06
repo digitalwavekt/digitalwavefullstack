@@ -2,6 +2,7 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 import PDFDocument from 'pdfkit'
 import crypto from 'crypto'
+import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
 
 const router = express.Router()
 
@@ -26,54 +27,58 @@ const studentAuth = (req, res, next) => {
 }
 
 // Issue certificate
-router.post('/issue/:studentId', async (req, res) => {
-  try {
-    const supabase = getSupabase(req)
-    const { studentId } = req.params
+router.post(
+  '/issue/:studentId',
+  adminAuth,
+  requirePermission('manage_certificates'),
+  async (req, res) => {
+    try {
+      const supabase = getSupabase(req)
+      const { studentId } = req.params
 
-    const { data: student } = await supabase
-      .from('students')
-      .select('*')
-      .eq('id', studentId)
-      .maybeSingle()
+      const { data: student } = await supabase
+        .from('students')
+        .select('*')
+        .eq('id', studentId)
+        .maybeSingle()
 
-    if (!student) {
-      return res.status(404).json({ success: false, message: 'Student not found' })
+      if (!student) {
+        return res.status(404).json({ success: false, message: 'Student not found' })
+      }
+
+      const certId = `DW-${new Date().getFullYear()}-${String(student.id).padStart(3, '0')}`
+      const verificationToken = crypto.randomBytes(24).toString('hex')
+
+      const { data, error } = await supabase
+        .from('certificates')
+        .insert({
+          certificate_id: certId,
+          student_id: student.id,
+          student_name: student.name,
+          course_name: student.course_name,
+          duration: student.duration,
+          verification_token: verificationToken,
+          verification_url: `${process.env.FRONTEND_URL}/certificate/verify/${verificationToken}`,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      await supabase
+        .from('students')
+        .update({
+          certificate_available: true,
+          certificate_id: certId,
+        })
+        .eq('id', student.id)
+
+      res.json({ success: true, data })
+    } catch (error) {
+      console.error('Issue certificate error:', error)
+      res.status(500).json({ success: false, message: 'Failed to issue certificate' })
     }
-
-    const certId = `DW-${new Date().getFullYear()}-${String(student.id).padStart(3, '0')}`
-    const verificationToken = crypto.randomBytes(24).toString('hex')
-
-    const { data, error } = await supabase
-      .from('certificates')
-      .insert({
-        certificate_id: certId,
-        student_id: student.id,
-        student_name: student.name,
-        course_name: student.course_name,
-        duration: student.duration,
-        verification_token: verificationToken,
-        verification_url: `${process.env.FRONTEND_URL}/certificate/verify/${verificationToken}`,
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-
-    await supabase
-      .from('students')
-      .update({
-        certificate_available: true,
-        certificate_id: certId,
-      })
-      .eq('id', student.id)
-
-    res.json({ success: true, data })
-  } catch (error) {
-    console.error('Issue certificate error:', error)
-    res.status(500).json({ success: false, message: 'Failed to issue certificate' })
-  }
-})
+  })
 
 // Student certificate JSON
 router.get('/my', studentAuth, async (req, res) => {
@@ -255,22 +260,26 @@ router.get('/download', studentAuth, async (req, res) => {
 })
 
 // Admin all certificates
-router.get('/all', async (req, res) => {
-  try {
-    const supabase = getSupabase(req)
+router.get(
+  '/all',
+  adminAuth,
+  requirePermission('manage_certificates'),
+  async (req, res) => {
+    try {
+      const supabase = getSupabase(req)
 
-    const { data, error } = await supabase
-      .from('certificates')
-      .select('*')
-      .order('created_at', { ascending: false })
+      const { data, error } = await supabase
+        .from('certificates')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-    if (error) throw error
+      if (error) throw error
 
-    res.json({ success: true, data })
-  } catch (error) {
-    console.error('Fetch certificates error:', error)
-    res.status(500).json({ success: false, message: 'Failed to fetch certificates' })
-  }
-})
+      res.json({ success: true, data })
+    } catch (error) {
+      console.error('Fetch certificates error:', error)
+      res.status(500).json({ success: false, message: 'Failed to fetch certificates' })
+    }
+  })
 
 export default router

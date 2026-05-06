@@ -1,4 +1,5 @@
 import express from 'express'
+import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
 
 const router = express.Router()
 
@@ -138,137 +139,153 @@ router.get('/:section', async (req, res) => {
 })
 
 // Update all settings
-router.put('/', async (req, res) => {
-  try {
-    const supabase = getSupabase(req)
-    const currentSettings = await getAllSettings(supabase)
-    const updatedSettings = {
-      ...currentSettings,
-      ...req.body,
-    }
+router.put(
+  '/',
+  adminAuth,
+  requirePermission('manage_settings'),
+  async (req, res) => {
+    try {
+      const supabase = getSupabase(req)
+      const currentSettings = await getAllSettings(supabase)
+      const updatedSettings = {
+        ...currentSettings,
+        ...req.body,
+      }
 
-    for (const [key, value] of Object.entries(updatedSettings)) {
-      await upsertSetting(supabase, key, value)
-    }
+      for (const [key, value] of Object.entries(updatedSettings)) {
+        await upsertSetting(supabase, key, value)
+      }
 
-    res.json({
-      success: true,
-      message: 'Settings updated',
-      data: updatedSettings,
-    })
-  } catch (error) {
-    console.error('Update settings error:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Update failed',
-    })
-  }
-})
-
-// Update specific section
-router.put('/:section', async (req, res) => {
-  try {
-    const { section } = req.params
-    const supabase = getSupabase(req)
-
-    const { data: existing } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', section)
-      .maybeSingle()
-
-    const baseValue = existing?.value || defaultSettings[section]
-
-    if (!baseValue) {
-      return res.status(404).json({
+      res.json({
+        success: true,
+        message: 'Settings updated',
+        data: updatedSettings,
+      })
+    } catch (error) {
+      console.error('Update settings error:', error)
+      res.status(500).json({
         success: false,
-        message: 'Section not found',
+        message: 'Update failed',
       })
     }
+  })
 
-    const updatedValue = Array.isArray(baseValue)
-      ? req.body
-      : { ...baseValue, ...req.body }
+// Update specific section
+router.put(
+  '/:section',
+  adminAuth,
+  requirePermission('manage_settings'),
+  async (req, res) => {
+    try {
+      const { section } = req.params
+      const supabase = getSupabase(req)
 
-    const savedValue = await upsertSetting(supabase, section, updatedValue)
+      const { data: existing } = await supabase
+        .from('site_settings')
+        .select('value')
+        .eq('key', section)
+        .maybeSingle()
 
-    res.json({
-      success: true,
-      message: 'Section updated',
-      data: savedValue,
-    })
-  } catch (error) {
-    console.error('Update section error:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Update failed',
-    })
-  }
-})
+      const baseValue = existing?.value || defaultSettings[section]
+
+      if (!baseValue) {
+        return res.status(404).json({
+          success: false,
+          message: 'Section not found',
+        })
+      }
+
+      const updatedValue = Array.isArray(baseValue)
+        ? req.body
+        : { ...baseValue, ...req.body }
+
+      const savedValue = await upsertSetting(supabase, section, updatedValue)
+
+      res.json({
+        success: true,
+        message: 'Section updated',
+        data: savedValue,
+      })
+    } catch (error) {
+      console.error('Update section error:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Update failed',
+      })
+    }
+  })
 
 // Add team member
-router.post('/team', async (req, res) => {
-  try {
-    const supabase = getSupabase(req)
+router.post(
+  '/team',
+  adminAuth,
+  requirePermission('manage_settings'),
+  async (req, res) => {
+    try {
+      const supabase = getSupabase(req)
 
-    const { data: existing } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'team')
-      .maybeSingle()
+      const { data: existing } = await supabase
+        .from('site_settings')
+        .select('value')
+        .eq('key', 'team')
+        .maybeSingle()
 
-    const team = existing?.value || defaultSettings.team || []
+      const team = existing?.value || defaultSettings.team || []
 
-    const newMember = {
-      ...req.body,
-      id: Date.now(),
+      const newMember = {
+        ...req.body,
+        id: Date.now(),
+      }
+
+      const updatedTeam = [...team, newMember]
+      await upsertSetting(supabase, 'team', updatedTeam)
+
+      res.json({
+        success: true,
+        message: 'Team member added',
+        data: newMember,
+      })
+    } catch (error) {
+      console.error('Add team member error:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Failed to add member',
+      })
     }
-
-    const updatedTeam = [...team, newMember]
-    await upsertSetting(supabase, 'team', updatedTeam)
-
-    res.json({
-      success: true,
-      message: 'Team member added',
-      data: newMember,
-    })
-  } catch (error) {
-    console.error('Add team member error:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Failed to add member',
-    })
-  }
-})
+  })
 
 // Remove team member
-router.delete('/team/:id', async (req, res) => {
-  try {
-    const { id } = req.params
-    const supabase = getSupabase(req)
+router.delete(
+  '/team/:id',
+  adminAuth,
+  requirePermission('manage_settings'),
+  async (req, res) => {
+    try {
+      const { id } = req.params
+      const supabase = getSupabase(req)
 
-    const { data: existing } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'team')
-      .maybeSingle()
+      const { data: existing } = await supabase
+        .from('site_settings')
+        .select('value')
+        .eq('key', 'team')
+        .maybeSingle()
 
-    const team = existing?.value || defaultSettings.team || []
-    const updatedTeam = team.filter((m) => String(m.id) !== String(id))
+      const team = existing?.value || defaultSettings.team || []
+      const updatedTeam = team.filter((m) => String(m.id) !== String(id))
 
-    await upsertSetting(supabase, 'team', updatedTeam)
+      await upsertSetting(supabase, 'team', updatedTeam)
 
-    res.json({
-      success: true,
-      message: 'Team member removed',
-    })
-  } catch (error) {
-    console.error('Remove team member error:', error)
-    res.status(500).json({
-      success: false,
-      message: 'Failed to remove member',
-    })
-  }
-})
+      res.json({
+        success: true,
+        message: 'Team member removed',
+      })
+    } catch (error) {
+      console.error('Remove team member error:', error)
+      res.status(500).json({
+        success: false,
+        message: 'Failed to remove member',
+      })
+    }
+  })
 
 export default router
