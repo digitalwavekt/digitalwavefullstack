@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Mail, Phone, MapPin, ArrowUpRight, Linkedin, Twitter, Instagram, Github } from 'lucide-react'
+import useSiteSettings from '../../hooks/useSiteSettings'
 
 const quickLinks = [
   { name: 'Home', path: '/' },
@@ -21,6 +22,7 @@ const services = [
 ]
 
 export default function Footer() {
+  const { settings } = useSiteSettings()
   return (
     <footer className="relative bg-dark-800 border-t border-white/5">
       {/* Top gradient line */}
@@ -38,13 +40,13 @@ export default function Footer() {
                 </div>
               </div>
               <div>
-                <h3 className="text-lg font-bold gradient-text">Digital Wave</h3>
+                <h3 className="text-lg font-bold gradient-text">{settings?.general?.companyName || 'Digital Wave'}</h3>
                 <p className="text-[10px] text-gray-400 tracking-widest uppercase">IT Solutions Pvt Ltd</p>
               </div>
             </Link>
             <p className="text-gray-400 text-sm leading-relaxed mb-6">
-              Transforming ideas into digital reality. We build cutting-edge web solutions, 
-              mobile applications, and provide industry-ready internship programs.
+              {settings?.general?.description ||
+                'Transforming ideas into digital reality.'}
             </p>
             <div className="flex gap-3">
               {[
@@ -103,22 +105,32 @@ export default function Footer() {
               <li className="flex items-start gap-3">
                 <Mail className="w-5 h-5 text-blue-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-gray-400 text-sm">info@digitalwaveit.com</p>
-                  <p className="text-gray-500 text-xs">support@digitalwaveit.com</p>
+                  <p className="text-gray-400 text-sm">
+                    {settings?.contact?.email}
+                  </p>
+
+                  <p className="text-gray-500 text-xs">
+                    {settings?.contact?.supportEmail}
+                  </p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
                 <Phone className="w-5 h-5 text-purple-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-gray-400 text-sm">+91 98765 43210</p>
+                  <p className="text-gray-400 text-sm">
+                    {settings?.contact?.phone}
+                  </p>
                   <p className="text-gray-500 text-xs">Mon-Sat, 9AM-7PM</p>
                 </div>
               </li>
               <li className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-pink-400 mt-0.5 shrink-0" />
                 <p className="text-gray-400 text-sm">
-                  123 Tech Park, Sector 62<br />
-                  Noida, Uttar Pradesh 201301
+                  {settings?.contact?.address}
+                  <br />
+                  {settings?.contact?.city},{' '}
+                  {settings?.contact?.state}{' '}
+                  {settings?.contact?.pincode}
                 </p>
               </li>
             </ul>

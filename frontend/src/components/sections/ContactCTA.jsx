@@ -2,8 +2,10 @@ import { motion } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 import { Link } from 'react-router-dom'
 import { MessageSquare, ArrowRight, Phone, Mail, MapPin } from 'lucide-react'
+import useSiteSettings from '../../hooks/useSiteSettings'
 
 export default function ContactCTA() {
+  const { settings } = useSiteSettings()
   const [ref, inView] = useInView({ threshold: 0.2, triggerOnce: true })
 
   return (
@@ -23,15 +25,26 @@ export default function ContactCTA() {
               <span className="gradient-text">Amazing Together</span>
             </h2>
             <p className="text-gray-400 text-lg mb-8 leading-relaxed">
-              Whether you need a website, mobile app, CRM solution, or want to join our 
+              Whether you need a website, mobile app, CRM solution, or want to join our
               internship program — we're here to help. Reach out and let's discuss your project.
             </p>
 
             <div className="space-y-4 mb-8">
               {[
-                { icon: Phone, text: '+91 98765 43210', color: 'text-blue-400' },
-                { icon: Mail, text: 'info@digitalwaveit.com', color: 'text-purple-400' },
-                { icon: MapPin, text: 'Noida, Uttar Pradesh, India', color: 'text-pink-400' },
+                {
+                  icon: Phone,
+                  text: settings?.contact?.phone || '+91 98765 43210',
+                },
+                {
+                  icon: Mail,
+                  text: settings?.contact?.email || 'info@digitalwaveit.com',
+                },
+                {
+                  icon: MapPin,
+                  text: settings?.contact
+                    ? `${settings.contact.city}, ${settings.contact.state}, ${settings.contact.country}`
+                    : 'India',
+                },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
