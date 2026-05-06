@@ -15,6 +15,7 @@ import {
 import toast from 'react-hot-toast'
 import { apiFetch } from '../../lib/api'
 
+const API_URL = import.meta.env.VITE_API_URL
 
 export default function Overview() {
   const [loading, setLoading] = useState(true)
@@ -31,7 +32,13 @@ export default function Overview() {
     try {
       setLoading(true)
 
-      const data = await apiFetch('/api/admin/stats')
+      const res = await fetch(`${API_URL}/api/admin/stats`)
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to fetch stats')
+      }
+
       setStatsData(data.data)
     } catch (error) {
       toast.error(error.message || 'Failed to load dashboard')
@@ -162,10 +169,10 @@ export default function Overview() {
 
                   <span
                     className={`px-2 py-1 rounded-full text-xs font-medium ${student.status === 'active'
-                        ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                        : student.status === 'completed'
-                          ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                          : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                      ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                      : student.status === 'completed'
+                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                        : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
                       }`}
                   >
                     {student.status || 'pending'}
