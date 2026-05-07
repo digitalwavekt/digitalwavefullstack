@@ -101,14 +101,30 @@ export default function Internship() {
   }
 
   const handleGoogleLogin = useGoogleLogin({
+    scope: 'openid email profile',
     onSuccess: async (tokenResponse) => {
       setLoading(true)
 
       try {
+        let googleProfile = null
+
+        if (tokenResponse.access_token) {
+          const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+          })
+
+          if (profileRes.ok) {
+            googleProfile = await profileRes.json()
+          }
+        }
+
         const res = await fetch(`${API_BASE}/api/auth/google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: tokenResponse.access_token }),
+          body: JSON.stringify({
+            token: tokenResponse.access_token,
+            googleProfile,
+          }),
         })
 
         const data = await res.json()
@@ -117,11 +133,24 @@ export default function Internship() {
           throw new Error(data.message || 'Google login failed')
         }
 
-        localStorage.setItem('token', data.token)
-        if (data.user) localStorage.setItem('user', JSON.stringify(data.user))
+        const normalizedUser = {
+          ...(googleProfile || {}),
+          ...(data.user || {}),
+          name: data.user?.name || googleProfile?.name || googleProfile?.given_name || 'Digital Wave Student',
+          email: data.user?.email || googleProfile?.email || '',
+          picture: data.user?.picture || googleProfile?.picture || '',
+        }
+
+        if (!normalizedUser.email) {
+          throw new Error('Google email not received. Please use another Google account.')
+        }
+
+        localStorage.setItem('token', data.token || data.accessToken)
+        localStorage.setItem('refreshToken', data.refreshToken || '')
+        localStorage.setItem('user', JSON.stringify(normalizedUser))
 
         setStep(2)
-        toast.success('Login successful!')
+        toast.success(`Login successful: ${normalizedUser.email}`)
       } catch (error) {
         toast.error(error.message || 'Login failed. Please try again.')
       } finally {
@@ -153,6 +182,14 @@ export default function Internship() {
       const totalAmount = selectedCourse.pricePerMonth * selectedDuration
 
       const user = JSON.parse(localStorage.getItem('user') || '{}')
+
+      if (!user.email) {
+        toast.error('Email missing from Google login. Please login again.')
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        setStep(1)
+        return
+      }
 
       const res = await fetch(`${API_BASE}/api/payment/initiate`, {
         method: 'POST',

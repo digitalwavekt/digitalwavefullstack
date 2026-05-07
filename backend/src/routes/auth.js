@@ -111,9 +111,22 @@ const adminMiddleware = async (req, res, next) => {
 }
 
 // Google Auth
+const normalizeGooglePayload = (payload = {}) => {
+  const email = (payload.email || '').trim().toLowerCase()
+  const name = payload.name || payload.given_name || (email ? email.split('@')[0] : 'Digital Wave Student')
+
+  return {
+    googleId: payload.sub || payload.id || null,
+    email,
+    name,
+    picture: payload.picture || payload.avatar_url || null,
+    emailVerified: payload.email_verified ?? true,
+  }
+}
+
 router.post('/google', async (req, res) => {
   try {
-    const { token } = req.body
+    const { token, googleProfile } = req.body
 
     if (!token) {
       return res.status(400).json({
@@ -131,8 +144,6 @@ router.post('/google', async (req, res) => {
 
     let payload
 
-    // Supports both Google ID token (credential) and access token from useGoogleLogin.
-    // Recommended long-term: use authorization-code flow, but this prevents current frontend 404/token mismatch.
     try {
       const ticket = await googleClient.verifyIdToken({
         idToken: token,
@@ -154,7 +165,9 @@ router.post('/google', async (req, res) => {
       payload = await googleRes.json()
     }
 
-    if (!payload?.email) {
+    const googleUser = normalizeGooglePayload({ ...(googleProfile || {}), ...(payload || {}) })
+
+    if (!googleUser.email) {
       return res.status(401).json({
         success: false,
         message: 'Google account email not found',
@@ -163,11 +176,18 @@ router.post('/google', async (req, res) => {
 
     const supabase = getSupabase(req)
 
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: findError } = await supabase
       .from('users')
       .select('*')
-      .eq('email', payload.email.toLowerCase())
+      .eq('email', googleUser.email)
       .maybeSingle()
+
+    if (findError) {
+      return res.status(500).json({
+        success: false,
+        message: findError.message,
+      })
+    }
 
     let user = existingUser
 
@@ -175,11 +195,12 @@ router.post('/google', async (req, res) => {
       const { data: createdUser, error: createError } = await supabase
         .from('users')
         .insert({
-          name: payload.name || payload.email.split('@')[0],
-          email: payload.email.toLowerCase(),
-          picture: payload.picture,
-          google_id: payload.sub || payload.id,
+          name: googleUser.name,
+          email: googleUser.email,
+          picture: googleUser.picture,
+          google_id: googleUser.googleId,
           provider: 'google',
+          status: 'active',
         })
         .select()
         .single()
@@ -192,36 +213,58 @@ router.post('/google', async (req, res) => {
       }
 
       user = createdUser
+    } else {
+      const profilePatch = {
+        name: user.name || googleUser.name,
+        picture: user.picture || googleUser.picture,
+        google_id: user.google_id || googleUser.googleId,
+        provider: user.provider || 'google',
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data: updatedUser } = await supabase
+        .from('users')
+        .update(profilePatch)
+        .eq('id', user.id)
+        .select()
+        .single()
+
+      user = updatedUser || { ...user, ...profilePatch }
+    }
+
+    const safeUser = {
+      id: user.id,
+      name: user.name || googleUser.name,
+      email: user.email || googleUser.email,
+      picture: user.picture || googleUser.picture,
+      phone: user.phone || '',
+      type: 'user',
     }
 
     const accessToken = signAccessToken({
-      id: user.id,
-      email: user.email,
-      name: user.name,
+      id: safeUser.id,
+      email: safeUser.email,
+      name: safeUser.name,
       type: 'user',
     })
 
     const refreshToken = signRefreshToken({
-      id: user.id,
-      email: user.email,
+      id: safeUser.id,
+      email: safeUser.email,
       type: 'user',
     })
 
-    res.json({
+    return res.json({
       success: true,
+      message: 'Google login successful',
       accessToken,
       refreshToken,
       token: accessToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        picture: user.picture,
-      },
+      user: safeUser,
     })
   } catch (error) {
     console.error('Google auth error:', error)
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Google authentication failed',
     })

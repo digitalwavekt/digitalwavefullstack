@@ -1,5 +1,6 @@
 import express from 'express'
 import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
 import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
 
 const router = express.Router()
@@ -13,6 +14,17 @@ const getSupabase = (req) => {
 }
 
 const sha512 = (str) => crypto.createHash('sha512').update(str).digest('hex')
+
+const getAuthUser = (req) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1]
+    if (!token) return null
+    return jwt.verify(token, process.env.JWT_SECRET)
+  } catch (error) {
+    return null
+  }
+}
+
 
 const getPayuConfig = () => {
   const key = process.env.PAYU_KEY
@@ -32,36 +44,50 @@ const getPayuConfig = () => {
 router.post('/initiate', async (req, res) => {
   try {
     const supabase = getSupabase(req)
-    const { amount, email, name, phone, type, referenceId, productInfo } = req.body
+    const authUser = getAuthUser(req)
+    const { amount, email, name, phone, type, referenceId, productInfo, courseId, duration } = req.body
 
-    if (!amount || !email || !type || !referenceId) {
+    const finalEmail = (email || authUser?.email || '').trim().toLowerCase()
+    const finalNameFromUser = name || authUser?.name || 'Digital Wave Student'
+
+    if (!amount || !finalEmail || !type || !referenceId) {
       return res.status(400).json({
         success: false,
         message: 'amount, email, type and referenceId are required',
       })
     }
 
+    const numericAmount = Number(amount)
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid amount is required',
+      })
+    }
+
     const { key, salt, baseUrl, successUrl, failureUrl } = getPayuConfig()
 
     const txnId = `TXN_${Date.now()}_${Math.floor(Math.random() * 10000)}`
-    const finalAmount = Number(amount).toFixed(2)
+    const finalAmount = numericAmount.toFixed(2)
     const finalProductInfo = productInfo || type
-    const finalName = name || 'Digital Wave Student'
-    const finalPhone = phone || '9999999999'
+    const finalName = String(finalNameFromUser).trim().slice(0, 60) || 'Digital Wave Student'
+    const finalPhone = String(phone || '9999999999').replace(/\D/g, '').slice(-10) || '9999999999'
 
     const hashString =
-      `${key}|${txnId}|${finalAmount}|${finalProductInfo}|${finalName}|${email}` +
+      `${key}|${txnId}|${finalAmount}|${finalProductInfo}|${finalName}|${finalEmail}` +
       `|||||||||||${salt}`
 
     const hash = sha512(hashString)
 
     const { error } = await supabase.from('transactions').insert({
       txn_id: txnId,
-      user_email: email,
+      user_email: finalEmail,
       amount: Number(finalAmount),
       type,
       reference_id: referenceId,
       status: 'pending',
+      gateway: 'payu',
+      metadata: { courseId, duration, name: finalName, phone: finalPhone },
     })
 
     if (error) throw error
@@ -77,7 +103,7 @@ router.post('/initiate', async (req, res) => {
           amount: finalAmount,
           productinfo: finalProductInfo,
           firstname: finalName,
-          email,
+          email: finalEmail,
           phone: finalPhone,
           surl: successUrl,
           furl: failureUrl,
