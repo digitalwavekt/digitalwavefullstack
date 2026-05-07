@@ -15,7 +15,7 @@ export default function CertificateDownload() {
 
   const fetchCertificate = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/certificate/generate/${id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/certificate/download`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       })
 

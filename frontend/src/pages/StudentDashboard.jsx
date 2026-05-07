@@ -15,7 +15,8 @@ export default function StudentDashboard() {
   const [studentData, setStudentData] = useState(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
-  const { user, token, logout } = useAuthStore()
+  const { user, token: storeToken, logout } = useAuthStore()
+  const token = storeToken || localStorage.getItem('token')
 
   useEffect(() => {
     if (!token) {
@@ -27,7 +28,7 @@ export default function StudentDashboard() {
 
   const fetchStudentData = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/student/dashboard`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/student/dashboard`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
@@ -43,7 +44,7 @@ export default function StudentDashboard() {
 
   const handleDownloadCertificate = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/student/certificate/download`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/certificate/download`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const blob = await res.blob()

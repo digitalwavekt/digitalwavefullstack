@@ -128,12 +128,38 @@ router.post('/google', async (req, res) => {
       })
     }
 
-    const ticket = await googleClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    })
+    let payload
 
-    const payload = ticket.getPayload()
+    // Frontend useGoogleLogin returns an access_token. GoogleLogin component returns an ID token.
+    // Support both so the endpoint does not fail during production auth flows.
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      })
+      payload = ticket.getPayload()
+    } catch (idTokenError) {
+      const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!googleRes.ok) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid Google token',
+        })
+      }
+
+      payload = await googleRes.json()
+    }
+
+    if (!payload?.email) {
+      return res.status(401).json({
+        success: false,
+        message: 'Google account email missing',
+      })
+    }
+
     const supabase = getSupabase(req)
 
     const { data: existingUser } = await supabase

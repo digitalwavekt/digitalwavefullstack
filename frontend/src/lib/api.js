@@ -1,6 +1,6 @@
 import { useAuthStore } from '../hooks/useAuthStore'
 
-const API_URL = import.meta.env.VITE_API_URL
+const API_URL = import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com'
 
 export const apiFetch = async (endpoint, options = {}) => {
     const storeToken = useAuthStore.getState()?.token

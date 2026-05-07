@@ -9,6 +9,7 @@ import {
   Loader2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '../hooks/useAuthStore'
 
 const courses = [
   {
@@ -79,13 +80,14 @@ export default function Internship() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const { setUser, setToken } = useAuthStore()
 
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setLoading(true)
       try {
         // Send token to backend to verify and get user info
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/auth/google`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: tokenResponse.access_token }),
@@ -93,7 +95,11 @@ export default function Internship() {
         const data = await res.json()
 
         if (data.success) {
-          localStorage.setItem('token', data.token)
+          const accessToken = data.token || data.accessToken
+          localStorage.setItem('token', accessToken)
+          if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken)
+          setToken(accessToken)
+          setUser(data.user)
           setStep(2)
           toast.success('Login successful!')
         }
@@ -119,7 +125,7 @@ export default function Internship() {
       const totalAmount = selectedCourse.pricePerMonth * selectedDuration
 
       // Initiate PayU payment
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/payment/initiate`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/payment/initiate`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
