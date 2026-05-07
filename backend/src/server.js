@@ -35,6 +35,7 @@ app.use(
     contentSecurityPolicy: false, // Three.js conflict avoid
   })
 )
+app.use(morgan('combined'))
 
 // ============================================
 // FIXED CORS CONFIGURATION
@@ -97,11 +98,10 @@ app.options('*', cors(corsOptions))
 // RATE LIMITING
 // ============================================
 // General API limiter
-const apiLimiter = rateLimit({
+app.use('/api/auth', rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
-})
-
+  max: 10,
+}))
 // Strict auth limiter (important)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

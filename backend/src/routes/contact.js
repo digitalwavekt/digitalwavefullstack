@@ -1,19 +1,12 @@
 import express from 'express'
 import nodemailer from 'nodemailer'
 import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
-import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
+
+import { successResponse, errorResponse } from '../utils/response.js'
 
 const router = express.Router()
 
-const escapeHtml = (value = '') =>
-  String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;')
-    .replace(/'/g, '&#039;')
 
-const isEmail = (email = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())
 
 const escapeHtml = (value = '') =>
   String(value)

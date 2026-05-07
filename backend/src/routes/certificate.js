@@ -4,6 +4,7 @@ import PDFDocument from 'pdfkit'
 import crypto from 'crypto'
 import QRCode from 'qrcode'
 import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
+import { successResponse, errorResponse } from '../utils/response.js'
 
 const router = express.Router()
 
