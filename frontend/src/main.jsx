@@ -9,11 +9,6 @@ import './styles/index.css'
 import ErrorBoundary from './components/ErrorBoundary'
 
 
-root.render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
-)
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
