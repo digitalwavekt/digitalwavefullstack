@@ -20,14 +20,13 @@ const getAuthUser = (req) => {
     const token = req.headers.authorization?.split(' ')[1]
     if (!token) return null
     return jwt.verify(token, process.env.JWT_SECRET)
-  } catch (error) {
+  } catch {
     return null
   }
 }
 
-
 const getPayuConfig = () => {
-  const key = process.env.PAYU_KEY
+  const key = process.env.PAYU_KEY || process.env.PAYU_MERCHANT_KEY
   const salt = process.env.PAYU_SALT
   const baseUrl = process.env.PAYU_BASE_URL || 'https://test.payu.in/_payment'
   const successUrl = process.env.PAYU_SUCCESS_URL
@@ -40,12 +39,49 @@ const getPayuConfig = () => {
   return { key, salt, baseUrl, successUrl, failureUrl }
 }
 
+const createInternshipEnrollment = async (supabase, transaction) => {
+  if (!transaction || transaction.type !== 'internship') return
+
+  const metadata = transaction.metadata || {}
+
+  const enrollmentPayload = {
+    user_email: transaction.user_email,
+    user_name: metadata.name || null,
+    program_id: metadata.courseId || transaction.reference_id,
+    duration_months: metadata.duration ? Number(metadata.duration) : null,
+    payment_txn_id: transaction.txn_id,
+    amount: transaction.amount,
+    status: 'active',
+    metadata,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { error } = await supabase
+    .from('enrollments')
+    .upsert(enrollmentPayload, {
+      onConflict: 'payment_txn_id',
+    })
+
+  if (error) throw error
+}
+
 // INITIATE PAYU PAYMENT
 router.post('/initiate', async (req, res) => {
   try {
     const supabase = getSupabase(req)
     const authUser = getAuthUser(req)
-    const { amount, email, name, phone, type, referenceId, productInfo, courseId, duration } = req.body
+
+    const {
+      amount,
+      email,
+      name,
+      phone,
+      type,
+      referenceId,
+      productInfo,
+      courseId,
+      duration,
+    } = req.body
 
     const finalEmail = (email || authUser?.email || '').trim().toLowerCase()
     const finalNameFromUser = name || authUser?.name || 'Digital Wave Student'
@@ -58,6 +94,7 @@ router.post('/initiate', async (req, res) => {
     }
 
     const numericAmount = Number(amount)
+
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return res.status(400).json({
         success: false,
@@ -70,8 +107,11 @@ router.post('/initiate', async (req, res) => {
     const txnId = `TXN_${Date.now()}_${Math.floor(Math.random() * 10000)}`
     const finalAmount = numericAmount.toFixed(2)
     const finalProductInfo = productInfo || type
-    const finalName = String(finalNameFromUser).trim().slice(0, 60) || 'Digital Wave Student'
-    const finalPhone = String(phone || '9999999999').replace(/\D/g, '').slice(-10) || '9999999999'
+    const finalName =
+      String(finalNameFromUser).trim().slice(0, 60) || 'Digital Wave Student'
+    const finalPhone =
+      String(phone || '9999999999').replace(/\D/g, '').slice(-10) ||
+      '9999999999'
 
     const hashString =
       `${key}|${txnId}|${finalAmount}|${finalProductInfo}|${finalName}|${finalEmail}` +
@@ -87,7 +127,13 @@ router.post('/initiate', async (req, res) => {
       reference_id: referenceId,
       status: 'pending',
       gateway: 'payu',
-      metadata: { courseId, duration, name: finalName, phone: finalPhone },
+      metadata: {
+        courseId,
+        duration,
+        name: finalName,
+        phone: finalPhone,
+        productInfo: finalProductInfo,
+      },
     })
 
     if (error) throw error
@@ -96,6 +142,7 @@ router.post('/initiate', async (req, res) => {
       success: true,
       message: 'Payment initiated',
       data: {
+        txnId,
         action: baseUrl,
         payload: {
           key,
@@ -125,7 +172,7 @@ router.post('/initiate', async (req, res) => {
 router.post('/success', async (req, res) => {
   try {
     const supabase = getSupabase(req)
-    const { salt } = getPayuConfig()
+    const { key, salt } = getPayuConfig()
 
     const {
       status,
@@ -139,11 +186,13 @@ router.post('/success', async (req, res) => {
     } = req.body
 
     if (!txnid) {
-      return res.redirect(`${process.env.FRONTEND_URL}/payment/failure?reason=missing_txnid`)
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/payment/failure?reason=missing_txnid`
+      )
     }
 
     const reverseHashString =
-      `${salt}|${status}|||||||||||${email}|${firstname}|${productinfo}|${amount}|${txnid}|${process.env.PAYU_KEY}`
+      `${salt}|${status}|||||||||||${email}|${firstname}|${productinfo}|${amount}|${txnid}|${key}`
 
     const calculatedHash = sha512(reverseHashString)
 
@@ -156,6 +205,7 @@ router.post('/success', async (req, res) => {
         status: finalStatus,
         gateway_payment_id: mihpayid || null,
         gateway_response: req.body,
+        gateway_status: status || null,
         updated_at: new Date().toISOString(),
       })
       .eq('txn_id', txnid)
@@ -171,12 +221,18 @@ router.post('/success', async (req, res) => {
         .eq('id', data.reference_id)
     }
 
+    if (data?.type === 'internship' && finalStatus === 'completed') {
+      await createInternshipEnrollment(supabase, data)
+    }
+
     return res.redirect(
       `${process.env.FRONTEND_URL}/payment/success?txnId=${txnid}&status=${finalStatus}`
     )
   } catch (error) {
     console.error('Payment success error:', error)
-    return res.redirect(`${process.env.FRONTEND_URL}/payment/failure?reason=server_error`)
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/payment/failure?reason=server_error`
+    )
   }
 })
 
@@ -184,7 +240,7 @@ router.post('/success', async (req, res) => {
 router.post('/failure', async (req, res) => {
   try {
     const supabase = getSupabase(req)
-    const { txnid, mihpayid } = req.body
+    const { txnid, mihpayid, status } = req.body
 
     if (txnid) {
       await supabase
@@ -193,6 +249,7 @@ router.post('/failure', async (req, res) => {
           status: 'failed',
           gateway_payment_id: mihpayid || null,
           gateway_response: req.body,
+          gateway_status: status || 'failed',
           updated_at: new Date().toISOString(),
         })
         .eq('txn_id', txnid)
@@ -203,7 +260,9 @@ router.post('/failure', async (req, res) => {
     )
   } catch (error) {
     console.error('Payment failure error:', error)
-    return res.redirect(`${process.env.FRONTEND_URL}/payment/failure?reason=server_error`)
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/payment/failure?reason=server_error`
+    )
   }
 })
 
@@ -232,6 +291,10 @@ router.post('/verify', adminAuth, requirePermission('manage_payments'), async (r
         .eq('id', data.reference_id)
     }
 
+    if (data.type === 'internship' && status === 'completed') {
+      await createInternshipEnrollment(supabase, data)
+    }
+
     res.json({
       success: true,
       message: 'Payment verified',
@@ -239,7 +302,10 @@ router.post('/verify', adminAuth, requirePermission('manage_payments'), async (r
     })
   } catch (error) {
     console.error(error)
-    res.status(500).json({ success: false, message: 'Payment verification failed' })
+    res.status(500).json({
+      success: false,
+      message: 'Payment verification failed',
+    })
   }
 })
 
@@ -257,7 +323,10 @@ router.get('/all', adminAuth, requirePermission('manage_payments'), async (req, 
 
     res.json({ success: true, data })
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch transactions' })
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch transactions',
+    })
   }
 })
 
