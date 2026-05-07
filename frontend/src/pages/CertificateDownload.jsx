@@ -73,7 +73,7 @@ export default function CertificateDownload() {
           <p className="text-gray-400 text-xs">Certificate ID: DW-2024-{id}</p>
         </div>
 
-        <button 
+        <button
           onClick={handleDownload}
           className="btn-primary w-full flex items-center justify-center gap-2"
         >

@@ -1,37 +1,71 @@
 import { useAuthStore } from '../hooks/useAuthStore'
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com'
+const REQUEST_TIMEOUT_MS = 20000
+
+const safeJsonParse = (value) => {
+  try {
+    return JSON.parse(value || '{}')
+  } catch {
+    return {}
+  }
+}
+
+export const getStoredToken = () => {
+  const storeToken = useAuthStore.getState()?.token
+  const localToken =
+    localStorage.getItem('token') ||
+    localStorage.getItem('accessToken') ||
+    safeJsonParse(localStorage.getItem('digitalwave-auth'))?.state?.token ||
+    safeJsonParse(localStorage.getItem('auth-storage'))?.state?.token ||
+    safeJsonParse(localStorage.getItem('authStore'))?.state?.token
+
+  return storeToken || localToken || ''
+}
 
 export const apiFetch = async (endpoint, options = {}) => {
-    const storeToken = useAuthStore.getState()?.token
+  if (!endpoint?.startsWith('/')) {
+    throw new Error('API endpoint must start with /')
+  }
 
-    const localToken =
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.token ||
-        JSON.parse(localStorage.getItem('authStore') || '{}')?.state?.token
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
-    const token = storeToken || localToken
+  const headers = {
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(options.headers || {}),
+  }
 
-    const headers = {
-        'Content-Type': 'application/json',
-        ...(options.headers || {}),
-    }
+  const token = getStoredToken()
 
-    if (token) {
-        headers.Authorization = `Bearer ${token}`
-    }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
 
+  try {
     const res = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers,
+      ...options,
+      headers,
+      signal: options.signal || controller.signal,
     })
 
-    const data = await res.json().catch(() => ({}))
+    const contentType = res.headers.get('content-type') || ''
+    const data = contentType.includes('application/json')
+      ? await res.json().catch(() => ({}))
+      : await res.text().catch(() => '')
 
-    if (!res.ok || data.success === false) {
-        throw new Error(data.message || 'Request failed')
+    if (!res.ok || data?.success === false) {
+      const message = data?.message || data?.error || `Request failed with status ${res.status}`
+      throw new Error(message)
     }
 
     return data
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout. Please try again.')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 }

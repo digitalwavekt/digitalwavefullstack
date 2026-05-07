@@ -1,5 +1,7 @@
 import express from 'express'
 import jwt from 'jsonwebtoken'
+import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
+import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
 
 const router = express.Router()
 
@@ -170,7 +172,7 @@ router.get('/certificate/download', studentAuth, async (req, res) => {
 })
 
 // 👨‍💼 Admin: All students
-router.get('/all', async (req, res) => {
+router.get('/all', adminAuth, requirePermission('manage_students'), async (req, res) => {
   try {
     const supabase = getSupabase(req)
 

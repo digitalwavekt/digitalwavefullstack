@@ -9,7 +9,6 @@ import {
   Loader2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useAuthStore } from '../hooks/useAuthStore'
 
 const courses = [
   {
@@ -80,7 +79,6 @@ export default function Internship() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  const { setUser, setToken } = useAuthStore()
 
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
@@ -95,11 +93,7 @@ export default function Internship() {
         const data = await res.json()
 
         if (data.success) {
-          const accessToken = data.token || data.accessToken
-          localStorage.setItem('token', accessToken)
-          if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken)
-          setToken(accessToken)
-          setUser(data.user)
+          localStorage.setItem('token', data.token)
           setStep(2)
           toast.success('Login successful!')
         }

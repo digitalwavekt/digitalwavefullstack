@@ -1,5 +1,7 @@
 import express from 'express'
 import crypto from 'crypto'
+import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
+import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
 
 const router = express.Router()
 
@@ -46,7 +48,7 @@ router.post('/initiate', async (req, res) => {
 
 
 // 🔹 VERIFY PAYMENT (Simulated)
-router.post('/verify', async (req, res) => {
+router.post('/verify', adminAuth, requirePermission('manage_payments'), async (req, res) => {
   try {
     const supabase = getSupabase(req)
 
@@ -86,7 +88,7 @@ router.post('/verify', async (req, res) => {
 
 
 // 🔹 GET ALL TRANSACTIONS (ADMIN)
-router.get('/all', async (req, res) => {
+router.get('/all', adminAuth, requirePermission('manage_payments'), async (req, res) => {
   try {
     const supabase = getSupabase(req)
 

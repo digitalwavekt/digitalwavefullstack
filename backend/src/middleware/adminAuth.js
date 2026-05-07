@@ -22,6 +22,14 @@ export const adminAuth = async (req, res, next) => {
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET)
+
+        if (decoded.type !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Admin token required',
+            })
+        }
+
         const supabase = getSupabase(req)
 
         const { data: admin, error } = await supabase

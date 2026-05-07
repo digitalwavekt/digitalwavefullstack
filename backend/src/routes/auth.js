@@ -130,8 +130,8 @@ router.post('/google', async (req, res) => {
 
     let payload
 
-    // Frontend useGoogleLogin returns an access_token. GoogleLogin component returns an ID token.
-    // Support both so the endpoint does not fail during production auth flows.
+    // Supports both Google ID token (credential) and access token from useGoogleLogin.
+    // Recommended long-term: use authorization-code flow, but this prevents current frontend 404/token mismatch.
     try {
       const ticket = await googleClient.verifyIdToken({
         idToken: token,
@@ -156,7 +156,7 @@ router.post('/google', async (req, res) => {
     if (!payload?.email) {
       return res.status(401).json({
         success: false,
-        message: 'Google account email missing',
+        message: 'Google account email not found',
       })
     }
 
@@ -165,7 +165,7 @@ router.post('/google', async (req, res) => {
     const { data: existingUser } = await supabase
       .from('users')
       .select('*')
-      .eq('email', payload.email)
+      .eq('email', payload.email.toLowerCase())
       .maybeSingle()
 
     let user = existingUser
@@ -174,10 +174,10 @@ router.post('/google', async (req, res) => {
       const { data: createdUser, error: createError } = await supabase
         .from('users')
         .insert({
-          name: payload.name,
-          email: payload.email,
+          name: payload.name || payload.email.split('@')[0],
+          email: payload.email.toLowerCase(),
           picture: payload.picture,
-          google_id: payload.sub,
+          google_id: payload.sub || payload.id,
           provider: 'google',
         })
         .select()

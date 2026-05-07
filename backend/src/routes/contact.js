@@ -1,7 +1,29 @@
 import express from 'express'
 import nodemailer from 'nodemailer'
+import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
+import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
 
 const router = express.Router()
+
+const escapeHtml = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+const isEmail = (email = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())
+
+const escapeHtml = (value = '') =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+const isEmail = (email = '') => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())
 
 const createTransporter = () => {
   return nodemailer.createTransport({
@@ -23,6 +45,20 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Name, email, subject and message are required',
+      })
+    }
+
+    if (!isEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid email is required',
+      })
+    }
+
+    if (!isEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid email is required',
       })
     }
 
@@ -58,15 +94,15 @@ router.post('/', async (req, res) => {
           from: `"${process.env.FROM_NAME || 'Digital Wave IT Solutions'}" <${process.env.FROM_EMAIL || process.env.SMTP_USER}>`,
           to: process.env.SMTP_USER,
           replyTo: email,
-          subject: `New Contact Form Submission: ${subject}`,
+          subject: `New Contact Form Submission: ${escapeHtml(subject)}`,
           html: `
             <h2>New Contact Form Submission</h2>
-            <p><strong>Name:</strong> ${name}</p>
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Phone:</strong> ${phone || 'Not provided'}</p>
-            <p><strong>Subject:</strong> ${subject}</p>
+            <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+            <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+            <p><strong>Phone:</strong> ${escapeHtml(phone || 'Not provided')}</p>
+            <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
             <p><strong>Message:</strong></p>
-            <p>${message}</p>
+            <p>${escapeHtml(message)}</p>
           `,
         })
       }
@@ -85,7 +121,7 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.get('/', async (req, res) => {
+router.get('/', adminAuth, requirePermission('manage_contacts'), async (req, res) => {
   try {
     const db = req.app.locals.db
     const supabase = db?.connection
@@ -105,7 +141,7 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminAuth, requirePermission('manage_contacts'), async (req, res) => {
   try {
     const { id } = req.params
     const { status } = req.body
