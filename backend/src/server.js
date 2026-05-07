@@ -31,8 +31,10 @@ app.set('trust proxy', 1)
 // Security middleware
 app.use(
   helmet({
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
     crossOriginResourcePolicy: false,
-    contentSecurityPolicy: false, // Three.js conflict avoid
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false,
   })
 )
 app.use(morgan('combined'))
