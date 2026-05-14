@@ -12,16 +12,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy on EC2
+      - name: Deploy on EC2 with rollback
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
           script: |
-            cd ${{ secrets.EC2_PROJECT_PATH }}
-            git pull origin main
+            set -e
+
+            APP_PATH="${{ secrets.EC2_PROJECT_PATH }}"
+            PM2_APP="${{ secrets.PM2_APP_NAME }}"
+            HEALTH_URL="http://localhost:5000/api/health"
+
+            cd $APP_PATH
+
+            OLD_COMMIT=$(git rev-parse HEAD)
+            echo "Old commit: $OLD_COMMIT"
+
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+
             cd backend
             npm install --omit=dev
-            pm2 restart ${{ secrets.PM2_APP_NAME }} --update-env
-            pm2 save
+
+            pm2 reload $PM2_APP --update-env || pm2 restart $PM2_APP --update-env
+
+            sleep 8
+
+            if curl -fsS $HEALTH_URL; then
+              echo "Deployment successful"
+              pm2 save
+            else
+              echo "Health check failed. Rolling back..."
+
+              cd $APP_PATH
+              git reset --hard $OLD_COMMIT
+
+              cd backend
+              npm install --omit=dev
+              pm2 reload $PM2_APP --update-env || pm2 restart $PM2_APP --update-env
+              pm2 save
+
+              exit 1
+            fi
