@@ -14,6 +14,8 @@ const Services = lazy(() => import('./pages/Services'))
 const Projects = lazy(() => import('./pages/Projects'))
 const Internship = lazy(() => import('./pages/Internship'))
 const CollegeProject = lazy(() => import('./pages/CollegeProject'))
+const AIProjectOrder = lazy(() => import('./pages/AIProjectOrder'))
+const AIProjectPortal = lazy(() => import('./pages/AIProjectPortal'))
 const Contact = lazy(() => import('./pages/Contact'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
@@ -37,6 +39,8 @@ function App() {
             <Route path="/projects" element={<Projects />} />
             <Route path="/internship" element={<Internship />} />
             <Route path="/college-project" element={<CollegeProject />} />
+            <Route path="/ai-project-order" element={<AIProjectOrder />} />
+            <Route path="/student/ai-projects" element={<AIProjectPortal />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard/*" element={<AdminDashboard />} />

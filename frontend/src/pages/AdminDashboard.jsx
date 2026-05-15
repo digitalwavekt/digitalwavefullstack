@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, BookOpen, GraduationCap, Settings,
   LogOut, Menu, X, ChevronRight, Shield, UserPlus,
   Image, MapPin, Phone, Mail, FileText, Award, DollarSign,
-  TrendingUp, AlertCircle, CheckCircle2, Clock
+  TrendingUp, AlertCircle, CheckCircle2, Clock, Brain
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -17,6 +17,7 @@ import Students from '../components/admin/Students'
 import Courses from '../components/admin/Courses'
 import Certificates from '../components/admin/Certificates'
 import CollegeProjects from '../components/admin/CollegeProjects'
+import AIProjectOrders from '../components/admin/AIProjectOrders'
 import SettingsPanel from '../components/admin/SettingsPanel'
 import SubAdmins from '../components/admin/SubAdmins'
 
@@ -26,6 +27,7 @@ const sidebarItems = [
   { id: 'courses', label: 'Courses', icon: BookOpen, path: 'courses' },
   { id: 'certificates', label: 'Certificates', icon: Award, path: 'certificates' },
   { id: 'college-projects', label: 'College Projects', icon: GraduationCap, path: 'college-projects' },
+  { id: 'ai-projects', label: 'AI Projects', icon: Brain, path: 'ai-projects' },
   { id: 'subadmins', label: 'Sub-Admins', icon: UserPlus, path: 'subadmins' },
   { id: 'settings', label: 'Settings', icon: Settings, path: 'settings' },
 ]
@@ -165,6 +167,7 @@ export default function AdminDashboard() {
               <Route path="courses" element={<Courses />} />
               <Route path="certificates" element={<Certificates />} />
               <Route path="college-projects" element={<CollegeProjects />} />
+              <Route path="ai-projects" element={<AIProjectOrders />} />
               <Route path="subadmins" element={<SubAdmins />} />
               <Route path="settings" element={<SettingsPanel />} />
             </Routes>

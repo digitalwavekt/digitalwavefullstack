@@ -6,6 +6,8 @@ import morgan from 'morgan'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 import uploadRoutes from './routes/upload.js'
+import projectTemplateRoutes from './routes/projectTemplates.js'
+import aiProjectDeliveryRoutes from './routes/aiProjectDelivery.js'
 
 // Route imports
 import authRoutes from './routes/auth.js'
@@ -167,6 +169,8 @@ app.use('/api/college-project', collegeProjectRoutes)
 app.use('/api/certificate', certificateRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/project-templates', projectTemplateRoutes)
+app.use('/api/ai-project-delivery', aiProjectDeliveryRoutes)
 
 // ============================================
 // 404 HANDLER
