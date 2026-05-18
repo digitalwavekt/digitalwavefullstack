@@ -100,9 +100,7 @@ export default function AIProjectOrder() {
           email: formData.email,
           name: formData.studentName,
           phone: formData.phone,
-          type: formData.orderType === 'internship'
-            ? 'ai_internship_project'
-            : 'ai_project_delivery',
+          type: 'ai_project_delivery',
           referenceId: order.id,
           productInfo: formData.orderType === 'internship'
             ? `Digital Wave Internship + Project - ${selectedTemplate.name}`
@@ -176,7 +174,7 @@ export default function AIProjectOrder() {
                 <textarea className="input-field min-h-[100px]" placeholder="Custom notes / documentation / deployment requirements" value={formData.customNotes} onChange={(e) => updateField('customNotes', e.target.value)} />
 
                 <div className="grid sm:grid-cols-3 gap-3">
-                  {[['documentationRequired', 'Documentation'], ['pptRequired', 'PPT'], ['deploymentRequired', 'Deployment Guide']].map(([key, label]) => (
+                  {[[ 'documentationRequired', 'Documentation' ], [ 'pptRequired', 'PPT' ], [ 'deploymentRequired', 'Deployment Guide' ]].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10">
                       <input type="checkbox" checked={formData[key]} onChange={(e) => updateField(key, e.target.checked)} />
                       <span className="text-sm text-gray-200">{label}</span>

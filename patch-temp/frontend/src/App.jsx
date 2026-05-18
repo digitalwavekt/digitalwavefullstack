@@ -13,17 +13,15 @@ const About = lazy(() => import('./pages/About'))
 const Services = lazy(() => import('./pages/Services'))
 const Projects = lazy(() => import('./pages/Projects'))
 const Internship = lazy(() => import('./pages/Internship'))
-
-// old college project page disabled for payment-first flow
+const CollegeProject = lazy(() => import('./pages/CollegeProject'))
 const AIProjectOrder = lazy(() => import('./pages/AIProjectOrder'))
-
 const AIProjectPortal = lazy(() => import('./pages/AIProjectPortal'))
+const StudentProjectLogin = lazy(() => import('./pages/StudentProjectLogin'))
+const StudentProjectDashboard = lazy(() => import('./pages/StudentProjectDashboard'))
 const Contact = lazy(() => import('./pages/Contact'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
-const StudentProjectLogin = lazy(() => import('./pages/StudentProjectLogin'))
-const StudentProjectDashboard = lazy(() => import('./pages/StudentProjectDashboard'))
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
 const PaymentFailed = lazy(() => import('./pages/PaymentFailed'))
 const CertificateDownload = lazy(() => import('./pages/CertificateDownload'))
@@ -34,7 +32,6 @@ function App() {
     <div className="min-h-screen bg-dark-900 text-white relative">
       <ScrollToTop />
       <Navbar />
-
       <Suspense fallback={<LoadingScreen />}>
         <AnimatePresence mode="wait">
           <Routes>
@@ -43,31 +40,23 @@ function App() {
             <Route path="/services" element={<Services />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/internship" element={<Internship />} />
-
-            {/* Payment-first project order flow */}
-            <Route path="/college-project" element={<AIProjectOrder />} />
+            <Route path="/college-project" element={<CollegeProject />} />
             <Route path="/ai-project-order" element={<AIProjectOrder />} />
-
             <Route path="/student/ai-projects" element={<AIProjectPortal />} />
             <Route path="/student/project-login" element={<StudentProjectLogin />} />
             <Route path="/student/project-dashboard" element={<StudentProjectDashboard />} />
-
             <Route path="/contact" element={<Contact />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard/*" element={<AdminDashboard />} />
             <Route path="/student/dashboard" element={<StudentDashboard />} />
-
             <Route path="/payment/success" element={<PaymentSuccess />} />
             <Route path="/payment/failed" element={<PaymentFailed />} />
-
             <Route path="/certificate/:id" element={<CertificateDownload />} />
             <Route path="/certificate/verify/:token" element={<VerifyCertificate />} />
-
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AnimatePresence>
       </Suspense>
-
       <Footer />
     </div>
   )

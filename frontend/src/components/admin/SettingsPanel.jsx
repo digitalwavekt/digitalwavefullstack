@@ -20,7 +20,9 @@ import toast from 'react-hot-toast'
 import { uploadFile } from '../../lib/uploadFile'
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com'
+  (import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com')
+    .replace(/\/+$/, '')
+    .replace(/\/api$/, '')
 
 async function authFetch(path, options = {}) {
   const token =

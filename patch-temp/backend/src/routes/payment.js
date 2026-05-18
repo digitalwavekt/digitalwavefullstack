@@ -158,7 +158,7 @@ router.post('/initiate', async (req, res) => {
           surl: successUrl,
           furl: failureUrl,
           hash,
-
+          service_provider: 'payu_paisa',
         },
       },
     })

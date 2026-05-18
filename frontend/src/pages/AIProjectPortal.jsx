@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
+import { useLocation } from 'react-router-dom'
 import { FileText, Loader2, Lock, PackageCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiFetch } from '../lib/api'
@@ -7,6 +8,7 @@ import { apiFetch } from '../lib/api'
 export default function AIProjectPortal() {
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
+  const location = useLocation()
 
   useEffect(() => {
     loadProjects()
@@ -14,7 +16,14 @@ export default function AIProjectPortal() {
 
   const loadProjects = async () => {
     try {
-      const res = await apiFetch('/api/ai-project-delivery/student/my-projects')
+      const orderId = location.state?.orderId
+      const studentEmail = location.state?.studentEmail
+
+      const endpoint = orderId && studentEmail
+        ? `/api/ai-project-delivery/student/order-lookup?orderId=${encodeURIComponent(orderId)}&email=${encodeURIComponent(studentEmail)}`
+        : '/api/ai-project-delivery/student/my-projects'
+
+      const res = await apiFetch(endpoint)
       setProjects(res.data || [])
     } catch (error) {
       toast.error(error.message || 'Login required to view AI projects')

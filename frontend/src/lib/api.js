@@ -1,6 +1,8 @@
 import { useAuthStore } from '../hooks/useAuthStore'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com'
+const API_URL = (import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '')
 const REQUEST_TIMEOUT_MS = 20000
 
 const safeJsonParse = (value) => {
