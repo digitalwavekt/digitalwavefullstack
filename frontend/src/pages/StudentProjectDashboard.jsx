@@ -98,6 +98,108 @@ export default function StudentProjectDashboard() {
                   </button>
                 ))}
 
+                {selectedOrder && (
+                  <div className="glass rounded-3xl p-6 border border-white/10">
+                    <h2 className="text-2xl font-semibold text-white mb-4">Selected Order Insights</h2>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="bg-white/5 rounded-3xl p-4">
+                        <p className="text-xs text-gray-400">Order Number</p>
+                        <p className="text-sm text-white mt-1">{selectedOrder.orderNumber}</p>
+                      </div>
+                      <div className="bg-white/5 rounded-3xl p-4">
+                        <p className="text-xs text-gray-400">Current Status</p>
+                        <p className="text-sm text-white mt-1">{selectedOrder.progressLabel || selectedOrder.status}</p>
+                      </div>
+                      <div className="bg-white/5 rounded-3xl p-4">
+                        <p className="text-xs text-gray-400">Tech Stack</p>
+                        <p className="text-sm text-white mt-1">{selectedOrder.techStack || selectedOrder.category || '-'}</p>
+                      </div>
+                      <div className="bg-white/5 rounded-3xl p-4">
+                        <p className="text-xs text-gray-400">Deadline</p>
+                        <p className="text-sm text-white mt-1">{selectedOrder.deadline || 'Flexible'}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 space-y-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Project Requirements</h3>
+                        <p className="text-gray-400 mt-2">{selectedOrder.requirements?.custom_notes || 'No additional notes have been provided yet.'}</p>
+                      </div>
+
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">AI Delivery Blueprint</h3>
+                        {selectedOrder.aiProject?.aiOutput ? (
+                          <div className="grid gap-4 mt-3">
+                            {selectedOrder.aiProject.aiOutput.projectOverview && (
+                              <div className="bg-white/5 rounded-3xl p-4">
+                                <h4 className="text-sm font-semibold text-white">Overview</h4>
+                                <p className="text-gray-300 text-sm mt-2">{selectedOrder.aiProject.aiOutput.projectOverview}</p>
+                              </div>
+                            )}
+                            {selectedOrder.aiProject.aiOutput.projectScope && (
+                              <div className="bg-white/5 rounded-3xl p-4">
+                                <h4 className="text-sm font-semibold text-white">Scope</h4>
+                                <p className="text-gray-300 text-sm mt-2">{selectedOrder.aiProject.aiOutput.projectScope}</p>
+                              </div>
+                            )}
+                            {selectedOrder.aiProject.aiOutput.deploymentGuide && (
+                              <div className="bg-white/5 rounded-3xl p-4">
+                                <h4 className="text-sm font-semibold text-white">Deployment Guide</h4>
+                                <p className="text-gray-300 text-sm mt-2">{selectedOrder.aiProject.aiOutput.deploymentGuide}</p>
+                              </div>
+                            )}
+                            {selectedOrder.aiProject.aiOutput.vivaQuestions && (
+                              <div className="bg-white/5 rounded-3xl p-4">
+                                <h4 className="text-sm font-semibold text-white">Viva Questions</h4>
+                                <p className="text-gray-300 text-sm mt-2">{selectedOrder.aiProject.aiOutput.vivaQuestions}</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-gray-400 mt-2">AI output is still pending. Your admin team will generate or review it soon.</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Final Delivery</h3>
+                        {['delivery_unlocked', 'delivered'].includes(selectedOrder.status) ? (
+                          <div className="mt-3 space-y-3">
+                            {selectedOrder.deliveryAssets?.githubRepoUrl && (
+                              <a className="block text-blue-300 hover:underline" href={selectedOrder.deliveryAssets.githubRepoUrl} target="_blank" rel="noreferrer">View GitHub Repository</a>
+                            )}
+                            {selectedOrder.deliveryAssets?.zipFileUrl && (
+                              <a className="block text-blue-300 hover:underline" href={selectedOrder.deliveryAssets.zipFileUrl} target="_blank" rel="noreferrer">Download Project Archive</a>
+                            )}
+                            {selectedOrder.deliveryAssets?.documentationUrl && (
+                              <a className="block text-blue-300 hover:underline" href={selectedOrder.deliveryAssets.documentationUrl} target="_blank" rel="noreferrer">Open Documentation</a>
+                            )}
+                            {selectedOrder.deliveryAssets?.pptUrl && (
+                              <a className="block text-blue-300 hover:underline" href={selectedOrder.deliveryAssets.pptUrl} target="_blank" rel="noreferrer">Download Presentation</a>
+                            )}
+                            {!selectedOrder.deliveryAssets && <p className="text-gray-400">Delivery content is being prepared and will appear after final approval.</p>}
+                          </div>
+                        ) : (
+                          <p className="text-gray-400 mt-2">Final assets stay locked until admin quality approval is complete.</p>
+                        )}
+                      </div>
+
+                      {selectedOrder.messages?.length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-semibold text-white">Notes from Admin</h3>
+                          <div className="mt-3 space-y-3">
+                            {selectedOrder.messages.map((message) => (
+                              <div key={message.id} className="bg-white/5 rounded-3xl p-4">
+                                <p className="text-sm text-gray-300">{message.message}</p>
+                                <p className="text-xs text-gray-500 mt-2">From: {message.senderName || 'Admin'}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {internshipOrders.length > 0 && (
                   <div className="glass rounded-3xl p-6 border border-white/10">
                     <div className="flex items-center gap-2 mb-4"><GraduationCap className="w-6 h-6 text-purple-300" /><h2 className="text-xl font-semibold">Internship Updates</h2></div>

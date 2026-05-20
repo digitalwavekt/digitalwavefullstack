@@ -53,6 +53,9 @@ export default function AIProjectOrders() {
   const [actionLoading, setActionLoading] = useState('')
   const [expandedId, setExpandedId] = useState(null)
   const [filters, setFilters] = useState({ search: '', status: '', type: 'all' })
+  const [aiEditor, setAiEditor] = useState({ orderId: null, content: '' })
+  const [deliveryForm, setDeliveryForm] = useState({})
+  const [notesForm, setNotesForm] = useState({})
 
   useEffect(() => { loadOrders() }, [])
 
@@ -90,6 +93,82 @@ export default function AIProjectOrders() {
       await loadOrders()
     } catch (error) {
       toast.error(error.message || 'Update failed')
+    } finally {
+      setActionLoading('')
+    }
+  }
+
+  const generateAIContent = async (orderId) => {
+    setActionLoading(`${orderId}-generate-ai`)
+    try {
+      await apiFetch(`/api/ai-project-delivery/admin/orders/${orderId}/generate-ai`, {
+        method: 'POST',
+      })
+      toast.success('AI content generation started')
+      await loadOrders()
+    } catch (error) {
+      toast.error(error.message || 'AI generation failed')
+    } finally {
+      setActionLoading('')
+    }
+  }
+
+  const saveAIOutput = async (orderId) => {
+    if (!aiEditor.content) {
+      toast.error('AI output content is required')
+      return
+    }
+    let parsed
+    try {
+      parsed = JSON.parse(aiEditor.content)
+    } catch {
+      toast.error('AI output must be valid JSON')
+      return
+    }
+    setActionLoading(`${orderId}-save-output`)
+    try {
+      await apiFetch(`/api/ai-project-delivery/admin/orders/${orderId}/ai-output`, {
+        method: 'PUT',
+        body: JSON.stringify({ aiOutput: parsed }),
+      })
+      toast.success('AI output saved')
+      setAiEditor({ orderId: null, content: '' })
+      await loadOrders()
+    } catch (error) {
+      toast.error(error.message || 'Save failed')
+    } finally {
+      setActionLoading('')
+    }
+  }
+
+  const saveDeliveryAssets = async (orderId) => {
+    setActionLoading(`${orderId}-save-delivery`)
+    try {
+      await apiFetch(`/api/ai-project-delivery/admin/orders/${orderId}/delivery-assets`, {
+        method: 'POST',
+        body: JSON.stringify(deliveryForm[orderId] || {}),
+      })
+      toast.success('Delivery assets saved')
+      await loadOrders()
+    } catch (error) {
+      toast.error(error.message || 'Failed to save delivery assets')
+    } finally {
+      setActionLoading('')
+    }
+  }
+
+  const saveAdminNote = async (orderId) => {
+    const note = notesForm[orderId]
+    if (!note) {
+      toast.error('Note cannot be empty')
+      return
+    }
+    setActionLoading(`${orderId}-save-note`)
+    try {
+      await updateStatus(orderId, 'admin_review', note)
+      setNotesForm((prev) => ({ ...prev, [orderId]: '' }))
+    } catch (error) {
+      toast.error(error.message || 'Failed to save note')
     } finally {
       setActionLoading('')
     }
@@ -256,6 +335,92 @@ export default function AIProjectOrders() {
                         <p className="text-sm text-gray-300">{order.requirements.custom_notes}</p>
                       </div>
                     )}
+
+                    <div className="grid gap-4 md:grid-cols-2 mb-4">
+                      <div className="p-4 rounded-3xl bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="text-xs text-gray-400">AI Output</p>
+                            <p className="text-white text-sm font-semibold">{order.aiProject?.generationStatus || 'Not generated'}</p>
+                          </div>
+                          <button disabled={!!actionLoading} onClick={() => generateAIContent(order.id)} className="text-xs px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 hover:bg-blue-500/20">
+                            {actionLoading === `${order.id}-generate-ai` ? 'Generating...' : order.aiProject?.aiOutput ? 'Regenerate' : 'Generate'}
+                          </button>
+                        </div>
+                        {order.aiProject?.aiOutput ? (
+                          <div className="space-y-3 text-sm text-gray-300">
+                            <p><strong>Overview:</strong> {order.aiProject.aiOutput.projectOverview || '–'}</p>
+                            <p><strong>Scope:</strong> {order.aiProject.aiOutput.projectScope || '–'}</p>
+                            <p><strong>Deployment:</strong> {order.aiProject.aiOutput.deploymentGuide ? 'Prepared' : 'Pending'}</p>
+                          </div>
+                        ) : (
+                          <p className="text-gray-400">AI blueprint will be generated and displayed here.</p>
+                        )}
+                        <button
+                          type="button"
+                          className="mt-4 w-full text-xs px-3 py-2 rounded-xl bg-white/5 text-gray-200 border border-white/10 hover:bg-white/10"
+                          onClick={() => {
+                            if (aiEditor.orderId === order.id) {
+                              setAiEditor({ orderId: null, content: '' })
+                            } else {
+                              setAiEditor({ orderId: order.id, content: JSON.stringify(order.aiProject?.aiOutput || { projectOverview: '', projectScope: '', deploymentGuide: '' }, null, 2) })
+                            }
+                          }}
+                        >
+                          {aiEditor.orderId === order.id ? 'Close editor' : 'Edit AI JSON'}
+                        </button>
+                        {aiEditor.orderId === order.id && (
+                          <div className="mt-4 space-y-3">
+                            <textarea
+                              className="w-full min-h-[180px] rounded-3xl bg-[#0f172a] border border-white/10 p-3 text-xs text-white"
+                              value={aiEditor.content}
+                              onChange={(e) => setAiEditor((prev) => ({ ...prev, content: e.target.value }))}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveAIOutput(order.id)}
+                              disabled={actionLoading === `${order.id}-save-output`}
+                              className="w-full rounded-2xl bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-3 py-2 text-sm hover:bg-emerald-500/20 disabled:opacity-50"
+                            >
+                              {actionLoading === `${order.id}-save-output` ? 'Saving...' : 'Save AI Output'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-4 rounded-3xl bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="text-xs text-gray-400">Delivery Assets</p>
+                            <p className="text-white text-sm font-semibold">Prepare final student delivery</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!!actionLoading}
+                            onClick={() => saveDeliveryAssets(order.id)}
+                            className="text-xs px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20"
+                          >
+                            {actionLoading === `${order.id}-save-delivery` ? 'Saving...' : 'Save Delivery'}
+                          </button>
+                        </div>
+                        {['githubRepoUrl', 'zipFileUrl', 'documentationUrl', 'pptUrl', 'deploymentGuideUrl', 'liveDemoUrl', 'demoCredentials'].map((field) => (
+                          <div key={field} className="space-y-2">
+                            <label className="text-xs text-gray-400">{field.replace(/([A-Z])/g, ' $1')}</label>
+                            <input
+                              className="w-full rounded-2xl bg-[#0f172a] border border-white/10 px-3 py-2 text-sm text-white"
+                              value={deliveryForm[order.id]?.[field] ?? order.deliveryAssets?.[field] ?? ''}
+                              onChange={(e) => setDeliveryForm((prev) => ({
+                                ...prev,
+                                [order.id]: {
+                                  ...prev[order.id],
+                                  [field]: e.target.value,
+                                },
+                              }))}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
                     {/* Status Actions */}
                     <div className="flex flex-wrap gap-2">

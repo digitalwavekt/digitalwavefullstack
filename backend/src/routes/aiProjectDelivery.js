@@ -4,6 +4,9 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { randomUUID } from 'crypto'
 import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
+import { generateFullProjectBlueprint, generateStudentChatbotResponse } from '../utils/aiGenerator.js'
+import { generateTemporaryPassword } from '../utils/aiStudentAccess.js'
+import { sendStudentLoginEmail } from '../utils/studentMailer.js'
 
 const router = express.Router()
 
@@ -20,36 +23,6 @@ const generateOrderNumber = () => {
   const random = Math.random().toString(36).slice(2, 8).toUpperCase()
   return `DW-AI-${ymd}-${random}`
 }
-
-const formatOrder = (order) => ({
-  id: order.id,
-  orderNumber: order.order_number,
-  accountId: order.account_id,
-  orderType: order.order_type || 'project',
-  studentName: order.student_name,
-  studentEmail: order.student_email,
-  studentPhone: order.student_phone,
-  college: order.college,
-  branch: order.branch,
-  year: order.year,
-  title: order.title,
-  category: order.category,
-  internshipProgramType: order.internship_program_type,
-  projectDomain: order.project_domain,
-  deliveryTemplateId: order.delivery_template_id,
-  techStack: order.tech_stack,
-  deadline: order.deadline,
-  priority: order.priority,
-  status: order.status,
-  paymentStatus: order.payment_status,
-  paymentTxnId: order.payment_txn_id,
-  totalAmount: order.total_amount,
-  currency: order.currency,
-  createdAt: order.created_at,
-  updatedAt: order.updated_at,
-  requirements: order.project_requirements?.[0] || null,
-  aiProject: order.ai_projects?.[0] || null,
-})
 
 const friendlyProgress = (status) => {
   const map = {
@@ -68,6 +41,91 @@ const friendlyProgress = (status) => {
     refunded: 'Refunded',
   }
   return map[status] || status
+}
+
+const safeArray = (value) => (Array.isArray(value) ? value : [])
+const getFirstOrNull = (value) => (Array.isArray(value) ? value[0] || null : value || null)
+const isValidUrl = (value) => {
+  try {
+    if (!value) return false
+    new URL(String(value))
+    return true
+  } catch {
+    return false
+  }
+}
+
+const formatOrder = (order) => {
+  const aiProject = getFirstOrNull(order.ai_projects)
+  const deliveryAssets = getFirstOrNull(order.project_delivery_assets)
+  const messages = safeArray(order.project_messages)
+
+  return {
+    id: order.id,
+    orderNumber: order.order_number,
+    accountId: order.account_id,
+    orderType: order.order_type || 'project',
+    studentName: order.student_name,
+    studentEmail: order.student_email,
+    studentPhone: order.student_phone,
+    college: order.college,
+    branch: order.branch,
+    year: order.year,
+    title: order.title,
+    category: order.category,
+    internshipProgramType: order.internship_program_type,
+    projectDomain: order.project_domain,
+    deliveryTemplateId: order.delivery_template_id,
+    techStack: order.tech_stack,
+    deadline: order.deadline,
+    priority: order.priority,
+    status: order.status,
+    paymentStatus: order.payment_status,
+    paymentTxnId: order.payment_txn_id,
+    totalAmount: order.total_amount,
+    currency: order.currency,
+    createdAt: order.created_at,
+    updatedAt: order.updated_at,
+    adminNotes: order.admin_notes || null,
+    requirements: order.project_requirements?.[0] || null,
+    aiProject: aiProject
+      ? {
+          id: aiProject.id,
+          generationStatus: aiProject.generation_status,
+          currentStage: aiProject.current_stage,
+          failureReason: aiProject.failure_reason,
+          aiOutput: aiProject.ai_output || null,
+          adminReviewNotes: aiProject.admin_review_notes || null,
+          isApproved: aiProject.is_approved || false,
+          approvedAt: aiProject.approved_at,
+          deliveredAt: aiProject.delivered_at,
+        }
+      : null,
+    deliveryAssets: deliveryAssets
+      ? {
+          githubRepoUrl: deliveryAssets.github_repo_url,
+          zipFileUrl: deliveryAssets.zip_file_url,
+          documentationUrl: deliveryAssets.documentation_url,
+          pptUrl: deliveryAssets.ppt_url,
+          installationVideoUrl: deliveryAssets.installation_video_url,
+          deploymentGuideUrl: deliveryAssets.deployment_guide_url,
+          liveDemoUrl: deliveryAssets.live_demo_url,
+          demoCredentials: deliveryAssets.demo_credentials,
+          adminNotes: deliveryAssets.admin_notes,
+          isApproved: deliveryAssets.is_approved,
+          approvedAt: deliveryAssets.approved_at,
+          deliveredAt: deliveryAssets.delivered_at,
+        }
+      : null,
+    messages: messages.map((message) => ({
+      id: message.id,
+      senderType: message.sender_type,
+      senderName: message.sender_name,
+      message: message.message,
+      isInternal: message.is_internal,
+      createdAt: message.created_at,
+    })),
+  }
 }
 
 const studentAuth = async (req, res, next) => {
@@ -345,25 +403,47 @@ router.get('/student/dashboard', studentAuth, async (req, res) => {
 
     if (error) throw error
 
-    const orderIds = (orders || []).map((o) => o.id)
+    const orderIds = (orders || []).map((o) => o.id).filter(Boolean)
     let updates = []
+    let assets = []
+    let messages = []
+
     if (orderIds.length) {
-      const { data } = await supabase
-        .from('internship_updates')
-        .select('*')
-        .in('order_id', orderIds)
-        .order('created_at', { ascending: false })
-      updates = data || []
+      const [{ data: updatesData }, { data: assetsData }, { data: messagesData }] = await Promise.all([
+        supabase.from('internship_updates').select('*').in('order_id', orderIds).order('created_at', { ascending: false }),
+        supabase.from('project_delivery_assets').select('*').in('order_id', orderIds),
+        supabase.from('project_messages').select('*').in('order_id', orderIds).eq('is_internal', false),
+      ])
+      updates = updatesData || []
+      assets = assetsData || []
+      messages = messagesData || []
     }
+
+    const assetMap = assets.reduce((acc, item) => {
+      acc[item.order_id] = item
+      return acc
+    }, {})
+    const messageMap = messages.reduce((acc, item) => {
+      if (!acc[item.order_id]) acc[item.order_id] = []
+      acc[item.order_id].push(item)
+      return acc
+    }, {})
 
     res.json({
       success: true,
       data: {
         student: req.student,
-        orders: (orders || []).map((order) => ({
-          ...formatOrder(order),
-          progressLabel: friendlyProgress(order.status),
-        })),
+        orders: (orders || []).map((order) => {
+          const formatted = formatOrder({
+            ...order,
+            project_delivery_assets: assetMap[order.id] ? [assetMap[order.id]] : [],
+            project_messages: messageMap[order.id] || [],
+          })
+          return {
+            ...formatted,
+            progressLabel: friendlyProgress(order.status),
+          }
+        }),
         internshipUpdates: updates,
       },
     })
@@ -451,6 +531,58 @@ router.get('/student/order-lookup', async (req, res) => {
   }
 })
 
+// PUBLIC: resend temporary login password/email after purchase (requires txnId + email)
+router.post('/student/resend-login', async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { txnId, email } = req.body
+    if (!txnId || !email) return res.status(400).json({ success: false, message: 'txnId and email are required' })
+
+    const { data: tx, error: txErr } = await supabase.from('transactions').select('*').eq('txn_id', String(txnId).trim()).maybeSingle()
+    if (txErr) throw txErr
+    if (!tx) return res.status(404).json({ success: false, message: 'Transaction not found' })
+
+    if ((String(tx.user_email || '').toLowerCase()) !== String(email).toLowerCase()) {
+      return res.status(400).json({ success: false, message: 'Email does not match transaction' })
+    }
+
+    const orderId = tx.reference_id
+    const { data: order } = await supabase.from('project_orders').select('id,order_number,student_email,student_name').eq('id', orderId).maybeSingle()
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+
+    // create or update student account with a new temporary password
+    const temporaryPassword = generateTemporaryPassword()
+    const bcrypt = await import('bcryptjs')
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10)
+
+    const { data: account, error: accErr } = await supabase
+      .from('student_accounts')
+      .upsert({
+        email: order.student_email.toLowerCase(),
+        name: order.student_name || null,
+        password_hash: passwordHash,
+        must_change_password: true,
+        status: 'active',
+        last_password_sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'email' })
+      .select()
+      .single()
+    if (accErr) throw accErr
+
+    const emailSent = await sendStudentLoginEmail({ to: order.student_email, name: order.student_name, temporaryPassword, orderNumber: order.order_number, orderType: tx.metadata?.orderType })
+
+    await supabase.from('audit_logs').insert({
+      actor_type: 'system', action: 'STUDENT_LOGIN_RESEND', resource_type: 'project_order', resource_id: order.id, metadata: { txnId: txnId, accountId: account?.id || null, emailSent }
+    })
+
+    res.json({ success: true, message: 'Temporary password resent' })
+  } catch (error) {
+    console.error('Resend login error:', error)
+    res.status(500).json({ success: false, message: 'Failed to resend login' })
+  }
+})
+
 router.get('/admin/orders', adminAuth, requirePermission('manage_projects'), async (req, res) => {
   try {
     const supabase = getSupabase(req)
@@ -467,6 +599,28 @@ router.get('/admin/orders', adminAuth, requirePermission('manage_projects'), asy
     if (error) throw error
 
     let orders = data || []
+    const orderIds = orders.map((order) => order.id).filter(Boolean)
+    let assets = []
+    let messages = []
+    if (orderIds.length) {
+      const [{ data: assetsData }, { data: messagesData }] = await Promise.all([
+        supabase.from('project_delivery_assets').select('*').in('order_id', orderIds),
+        supabase.from('project_messages').select('*').in('order_id', orderIds),
+      ])
+      assets = assetsData || []
+      messages = messagesData || []
+    }
+
+    const assetMap = assets.reduce((acc, item) => {
+      acc[item.order_id] = item
+      return acc
+    }, {})
+    const messageMap = messages.reduce((acc, item) => {
+      if (!acc[item.order_id]) acc[item.order_id] = []
+      acc[item.order_id].push(item)
+      return acc
+    }, {})
+
     if (search) {
       const s = String(search).toLowerCase()
       orders = orders.filter((order) =>
@@ -476,7 +630,16 @@ router.get('/admin/orders', adminAuth, requirePermission('manage_projects'), asy
       )
     }
 
-    res.json({ success: true, data: orders.map(formatOrder) })
+    res.json({
+      success: true,
+      data: orders.map((order) => {
+        return formatOrder({
+          ...order,
+          project_delivery_assets: assetMap[order.id] ? [assetMap[order.id]] : [],
+          project_messages: messageMap[order.id] || [],
+        })
+      }),
+    })
   } catch (error) {
     console.error('Admin fetch AI orders error:', error)
     res.status(500).json({ success: false, message: 'Failed to fetch AI project orders' })
@@ -503,6 +666,201 @@ router.patch('/admin/orders/:id/status', adminAuth, requirePermission('manage_pr
   } catch (error) {
     console.error('Admin update order status error:', error)
     res.status(500).json({ success: false, message: 'Status update failed' })
+  }
+})
+
+router.get('/admin/orders/:id', adminAuth, requirePermission('manage_projects'), async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { id } = req.params
+    const { data: order, error } = await supabase
+      .from('project_orders')
+      .select('*, project_requirements (*), ai_projects (*), project_delivery_assets (*), project_messages (*)')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+
+    res.json({ success: true, data: formatOrder(order) })
+  } catch (error) {
+    console.error('Admin fetch order detail error:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch order details' })
+  }
+})
+
+router.post('/admin/orders/:id/generate-ai', adminAuth, requirePermission('manage_projects'), async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { id } = req.params
+    const { data: order, error } = await supabase
+      .from('project_orders')
+      .select('*, project_requirements (*)')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+
+    const aiOutput = await generateFullProjectBlueprint(order, order.project_requirements?.[0] || {})
+    const { data: updatedAI, error: aiError } = await supabase
+      .from('ai_projects')
+      .update({
+        ai_output: aiOutput,
+        generation_status: 'generated',
+        current_stage: 'admin_review',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('order_id', id)
+      .select()
+      .single()
+    if (aiError) throw aiError
+
+    await supabase.from('project_orders').update({ status: 'admin_review', updated_at: new Date().toISOString() }).eq('id', id)
+
+    res.json({ success: true, message: 'AI content generated', data: updatedAI })
+  } catch (error) {
+    console.error('Admin generate AI error:', error)
+    res.status(500).json({ success: false, message: 'AI generation failed', error: error.message })
+  }
+})
+
+router.put('/admin/orders/:id/ai-output', adminAuth, requirePermission('manage_projects'), async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { id } = req.params
+    const { aiOutput } = req.body
+    if (!aiOutput || typeof aiOutput !== 'object') {
+      return res.status(400).json({ success: false, message: 'aiOutput object is required' })
+    }
+
+    const { data, error } = await supabase
+      .from('ai_projects')
+      .update({
+        ai_output: aiOutput,
+        generation_status: 'generated',
+        current_stage: 'admin_review',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('order_id', id)
+      .select()
+      .single()
+    if (error) throw error
+
+    res.json({ success: true, message: 'AI content saved', data })
+  } catch (error) {
+    console.error('Admin save AI output error:', error)
+    res.status(500).json({ success: false, message: 'Failed to save AI output' })
+  }
+})
+
+router.post('/admin/orders/:id/delivery-assets', adminAuth, requirePermission('manage_projects'), async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { id } = req.params
+    const payload = {
+      order_id: id,
+      github_repo_url: String(req.body.githubRepoUrl || '').trim() || null,
+      zip_file_url: String(req.body.zipFileUrl || '').trim() || null,
+      documentation_url: String(req.body.documentationUrl || '').trim() || null,
+      ppt_url: String(req.body.pptUrl || '').trim() || null,
+      installation_video_url: String(req.body.installationVideoUrl || '').trim() || null,
+      deployment_guide_url: String(req.body.deploymentGuideUrl || '').trim() || null,
+      live_demo_url: String(req.body.liveDemoUrl || '').trim() || null,
+      demo_credentials: String(req.body.demoCredentials || '').trim() || null,
+      admin_notes: String(req.body.adminNotes || '').trim() || null,
+      updated_at: new Date().toISOString(),
+    }
+
+    const invalidUrl = [payload.github_repo_url, payload.zip_file_url, payload.documentation_url, payload.ppt_url, payload.installation_video_url, payload.deployment_guide_url, payload.live_demo_url].find(
+      (value) => value && !isValidUrl(value)
+    )
+    if (invalidUrl) {
+      return res.status(400).json({ success: false, message: 'One or more delivery asset links are invalid URLs' })
+    }
+
+    const { data, error } = await supabase
+      .from('project_delivery_assets')
+      .upsert({ ...payload, created_at: new Date().toISOString() }, { onConflict: 'order_id' })
+      .select()
+      .single()
+    if (error) throw error
+
+    res.json({ success: true, message: 'Delivery assets saved', data })
+  } catch (error) {
+    console.error('Admin save delivery assets error:', error)
+    res.status(500).json({ success: false, message: 'Failed to save delivery assets' })
+  }
+})
+
+router.post('/admin/orders/:id/messages', adminAuth, requirePermission('manage_projects'), async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { id } = req.params
+    const { senderType = 'admin', senderName = 'Admin', message, isInternal = true } = req.body
+
+    if (!message) {
+      return res.status(400).json({ success: false, message: 'Message text is required' })
+    }
+
+    const { data: order } = await supabase.from('project_orders').select('id, ai_projects (id)').eq('id', id).maybeSingle()
+    const projectId = order?.ai_projects?.[0]?.id || null
+
+    const { data, error } = await supabase
+      .from('project_messages')
+      .insert({ order_id: id, project_id: projectId, sender_type: senderType, sender_name: senderName, message, is_internal: Boolean(isInternal) })
+      .select()
+      .single()
+    if (error) throw error
+
+    res.status(201).json({ success: true, message: 'Message added', data })
+  } catch (error) {
+    console.error('Admin create message error:', error)
+    res.status(500).json({ success: false, message: 'Failed to add message' })
+  }
+})
+
+router.get('/admin/orders/:id/messages', adminAuth, requirePermission('manage_projects'), async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { id } = req.params
+    const { data, error } = await supabase.from('project_messages').select('*').eq('order_id', id).order('created_at', { ascending: true })
+    if (error) throw error
+
+    res.json({ success: true, data })
+  } catch (error) {
+    console.error('Admin fetch messages error:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch messages' })
+  }
+})
+
+router.get('/student/orders/:id', studentAuth, async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { id } = req.params
+    const { data: order, error } = await supabase
+      .from('project_orders')
+      .select('*, project_requirements (*), ai_projects (*)')
+      .eq('id', id)
+      .eq('account_id', req.student.id)
+      .maybeSingle()
+    if (error) throw error
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+
+    const [{ data: assets }, { data: messages }] = await Promise.all([
+      supabase.from('project_delivery_assets').select('*').eq('order_id', id).maybeSingle(),
+      supabase.from('project_messages').select('*').eq('order_id', id).eq('is_internal', false),
+    ])
+
+    res.json({
+      success: true,
+      data: formatOrder({
+        ...order,
+        project_delivery_assets: assets ? [assets] : [],
+        project_messages: messages || [],
+      }),
+    })
+  } catch (error) {
+    console.error('Student fetch order detail error:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch order details' })
   }
 })
 

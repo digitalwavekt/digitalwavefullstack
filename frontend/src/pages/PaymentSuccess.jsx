@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, ArrowRight, Download, GraduationCap } from 'lucide-react'
@@ -7,10 +7,45 @@ import toast from 'react-hot-toast'
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams()
   const txnid = searchParams.get('txnid')
+  const [txInfo, setTxInfo] = useState(null)
+  const [resending, setResending] = useState(false)
 
   useEffect(() => {
     toast.success('Payment successful! Welcome to Digital Wave.')
+    if (txnid) fetchTxInfo(txnid)
   }, [])
+
+  const fetchTxInfo = async (id) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/payment/tx-info?txnid=${encodeURIComponent(id)}`)
+      const data = await res.json()
+      if (data?.success) setTxInfo(data.data)
+    } catch (err) {
+      console.warn('Failed to fetch tx info', err)
+    }
+  }
+
+  const handleResend = async () => {
+    if (!txInfo) return
+    setResending(true)
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/ai-project-delivery/student/resend-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ txnId: txInfo.txnId, email: txInfo.email }),
+      })
+      const data = await res.json()
+      if (data?.success) {
+        toast.success('Temporary password resent to your email')
+      } else {
+        toast.error(data?.message || 'Failed to resend')
+      }
+    } catch (err) {
+      toast.error('Failed to resend login email')
+    } finally {
+      setResending(false)
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center section-padding pt-20">
@@ -41,11 +76,20 @@ export default function PaymentSuccess() {
         )}
 
         <div className="space-y-3">
-          <Link to="/student/dashboard" className="btn-primary w-full flex items-center justify-center gap-2">
+          <Link to="/student/project-login" className="btn-primary w-full flex items-center justify-center gap-2">
             <GraduationCap className="w-4 h-4" />
-            Go to Dashboard
+            Student Login
             <ArrowRight className="w-4 h-4" />
           </Link>
+          <p className="text-gray-400 text-sm">Use your payment email and temporary password to log in and access your project dashboard.</p>
+          {txInfo?.email && (
+            <div className="text-sm text-gray-300">Email used: <span className="font-mono text-white">{txInfo.email}</span></div>
+          )}
+          {txInfo?.txnId && (
+            <button onClick={handleResend} disabled={resending} className="w-full px-4 py-3 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 transition-colors inline-block">
+              {resending ? 'Resending...' : 'Resend Temporary Password'}
+            </button>
+          )}
           <Link to="/" className="w-full px-4 py-3 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 transition-colors inline-block">
             Back to Home
           </Link>

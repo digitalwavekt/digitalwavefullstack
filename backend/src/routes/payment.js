@@ -337,4 +337,23 @@ router.get('/all', adminAuth, requirePermission('manage_payments'), async (req, 
   }
 })
 
+// PUBLIC: fetch minimal transaction info by txn id (safe, limited fields)
+router.get('/tx-info', async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const txnId = String(req.query.txnid || '').trim()
+    if (!txnId) return res.status(400).json({ success: false, message: 'txnid is required' })
+
+    const { data, error } = await supabase.from('transactions').select('txn_id,user_email,reference_id,status,amount').eq('txn_id', txnId).maybeSingle()
+    if (error) throw error
+    if (!data) return res.status(404).json({ success: false, message: 'Transaction not found' })
+
+    // return only minimal safe info
+    return res.json({ success: true, data: { txnId: data.txn_id, email: data.user_email, referenceId: data.reference_id, status: data.status, amount: data.amount } })
+  } catch (error) {
+    console.error('Fetch tx info error:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch transaction info' })
+  }
+})
+
 export default router

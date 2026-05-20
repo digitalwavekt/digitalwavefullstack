@@ -253,6 +253,124 @@ router.delete('/courses/:id', adminAuth, requirePermission('manage_courses'), as
   }
 })
 
+// ============================================
+// PROJECTS MANAGEMENT (Admin)
+// ============================================
+const formatProject = (project) => ({
+  id: project.id,
+  title: project.title,
+  slug: project.slug,
+  description: project.description,
+  category: project.category,
+  status: project.status,
+  imageUrl: project.image_url,
+  projectUrl: project.project_url,
+  isActive: project.is_active,
+  displayOrder: project.display_order,
+  createdAt: project.created_at,
+  updatedAt: project.updated_at,
+})
+
+router.get('/projects', adminAuth, async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const { data, error } = await supabase
+      .from('company_projects')
+      .select('*')
+      .order('display_order', { ascending: true })
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    res.json({ success: true, data: (data || []).map(formatProject) })
+  } catch (error) {
+    console.error('Fetch admin projects error:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch projects' })
+  }
+})
+
+router.post('/projects', adminAuth, async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    if (!req.body.title) {
+      return res.status(400).json({ success: false, message: 'Project title is required' })
+    }
+
+    const slug = req.body.slug || req.body.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || Date.now().toString()
+
+    const { data, error } = await supabase
+      .from('company_projects')
+      .insert({
+        title: req.body.title,
+        slug,
+        description: req.body.description || '',
+        category: req.body.category || 'Uncategorized',
+        status: req.body.status || 'Planning',
+        image_url: req.body.imageUrl || '',
+        project_url: req.body.projectUrl || '',
+        is_active: req.body.isActive !== undefined ? req.body.isActive : true,
+        display_order: Number(req.body.displayOrder || 0)
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    res.json({ success: true, message: 'Project created', data: formatProject(data) })
+  } catch (error) {
+    console.error('Create project error:', error)
+    res.status(500).json({ success: false, message: 'Failed to create project' })
+  }
+})
+
+router.put('/projects/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    const supabase = getSupabase(req)
+    const updates = { updated_at: new Date().toISOString() }
+
+    if (req.body.title !== undefined) updates.title = req.body.title
+    if (req.body.slug !== undefined) updates.slug = req.body.slug
+    if (req.body.description !== undefined) updates.description = req.body.description
+    if (req.body.category !== undefined) updates.category = req.body.category
+    if (req.body.status !== undefined) updates.status = req.body.status
+    if (req.body.imageUrl !== undefined) updates.image_url = req.body.imageUrl
+    if (req.body.projectUrl !== undefined) updates.project_url = req.body.projectUrl
+    if (req.body.isActive !== undefined) updates.is_active = req.body.isActive
+    if (req.body.displayOrder !== undefined) updates.display_order = Number(req.body.displayOrder)
+
+    const { data, error } = await supabase
+      .from('company_projects')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    res.json({ success: true, message: 'Project updated', data: formatProject(data) })
+  } catch (error) {
+    console.error('Update project error:', error)
+    res.status(500).json({ success: false, message: 'Update failed' })
+  }
+})
+
+router.delete('/projects/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    const supabase = getSupabase(req)
+    
+    // Soft delete
+    const { error } = await supabase
+      .from('company_projects')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) throw error
+    res.json({ success: true, message: 'Project deleted (deactivated)' })
+  } catch (error) {
+    console.error('Delete project error:', error)
+    res.status(500).json({ success: false, message: 'Delete failed' })
+  }
+})
+
 // Settings redirect
 router.get('/settings', async (req, res) => { res.redirect(307, '/api/settings') })
 router.put('/settings', async (req, res) => { res.redirect(307, '/api/settings') })

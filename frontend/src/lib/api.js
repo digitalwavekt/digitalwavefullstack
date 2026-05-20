@@ -38,7 +38,7 @@ export const apiFetch = async (endpoint, options = {}) => {
     ...(options.headers || {}),
   }
 
-  const token = getStoredToken()
+  const token = getStoredToken() || localStorage.getItem('studentProjectToken')
 
   if (token) {
     headers.Authorization = `Bearer ${token}`

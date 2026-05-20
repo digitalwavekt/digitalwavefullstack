@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest"
+    "test": "node ./scripts/run_unit_tests.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { sendStudentLoginEmail } from './studentMailer.js'
+import { generateFullProjectBlueprint } from './aiGenerator.js'
 
 export const generateTemporaryPassword = () => {
   const raw = crypto.randomBytes(9).toString('base64url')
@@ -72,6 +73,50 @@ export const finalizePaidStudentOrder = async (supabase, transaction = {}) => {
       .from('ai_projects')
       .update({ current_stage: 'waiting_for_admin', updated_at: new Date().toISOString() })
       .eq('id', order.ai_projects[0].id)
+  }
+
+  // Ensure an ai_projects row exists for this order
+  const { data: existingAI } = await supabase
+    .from('ai_projects')
+    .select('*')
+    .eq('order_id', order.id)
+    .maybeSingle()
+
+  if (!existingAI) {
+    await supabase.from('ai_projects').insert({
+      order_id: order.id,
+      generation_status: 'not_started',
+      current_stage: 'waiting_for_admin',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+  }
+
+  // Optionally auto-generate AI content in background if enabled
+  if (process.env.AUTO_GENERATE_AI === 'true') {
+    ;(async () => {
+      try {
+        await supabase
+          .from('ai_projects')
+          .update({ generation_status: 'generating', current_stage: 'ai_generating', updated_at: new Date().toISOString() })
+          .eq('order_id', order.id)
+
+        const aiOutput = await generateFullProjectBlueprint(order, order.project_requirements?.[0] || {})
+
+        await supabase
+          .from('ai_projects')
+          .update({ ai_output: aiOutput, generation_status: 'generated', current_stage: 'admin_review', updated_at: new Date().toISOString() })
+          .eq('order_id', order.id)
+
+        await supabase.from('project_orders').update({ status: 'admin_review', updated_at: new Date().toISOString() }).eq('id', order.id)
+      } catch (err) {
+        console.error('Auto AI generation failed for order', order.id, err)
+        await supabase
+          .from('ai_projects')
+          .update({ generation_status: 'failed', failure_reason: err.message || String(err), updated_at: new Date().toISOString() })
+          .eq('order_id', order.id)
+      }
+    })()
   }
 
   if (orderType === 'internship') {
