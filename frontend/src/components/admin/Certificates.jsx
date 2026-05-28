@@ -130,10 +130,10 @@ export default function Certificates() {
     }
   }
 
-  const issuedStudentIds = new Set(certificates.map((c) => Number(c.student_id)))
+  const issuedStudentIds = new Set(certificates.map((c) => String(c.student_id)))
 
   const eligibleStudents = students.filter((student) => {
-    return !issuedStudentIds.has(Number(student.id))
+    return !issuedStudentIds.has(String(student.id))
   })
 
   const listItems = [
@@ -467,7 +467,7 @@ export default function Certificates() {
 
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
-                          {cert.status === 'eligible' && (
+                          {cert.type === 'student' && (
                             <button
                               onClick={() => handleIssue(cert.studentId)}
                               disabled={issuingId === cert.studentId}

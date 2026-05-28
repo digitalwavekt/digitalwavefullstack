@@ -188,12 +188,23 @@ const createCertificatePdfBuffer = async ({ student, cert, design }) => {
 const uploadPdfToStorage = async ({ supabase, pdfBuffer, certId }) => {
   const filePath = `${new Date().getFullYear()}/certificate-${certId}.pdf`
 
-  const { error } = await supabase.storage
+  const upload = () => supabase.storage
     .from('certificates')
     .upload(filePath, pdfBuffer, {
       contentType: 'application/pdf',
       upsert: true,
     })
+
+  let { error } = await upload()
+
+  if (error?.message?.toLowerCase().includes('bucket')) {
+    await supabase.storage.createBucket('certificates', {
+      public: true,
+      allowedMimeTypes: ['application/pdf'],
+      fileSizeLimit: 10 * 1024 * 1024,
+    })
+    ;({ error } = await upload())
+  }
 
   if (error) throw error
 

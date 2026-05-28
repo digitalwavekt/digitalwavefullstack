@@ -37,6 +37,18 @@ const defaultSettings = {
     payuMode: 'test',
     currency: 'INR',
   },
+  certificate_design: {
+    primaryColor: '#ff7a00',
+    secondaryColor: '#22c55e',
+    backgroundColor: '#0f172a',
+    fontFamily: 'Inter',
+    logoUrl: '',
+    signatureUrl: '',
+    backgroundUrl: '',
+    signerName: 'Yogesh Kumar Saini',
+    signerTitle: 'Founder, Digital Wave IT Solutions',
+    template: 'modern',
+  },
   team: [],
 }
 
