@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams()
-  const txnid = searchParams.get('txnid')
+  const txnid = searchParams.get('txnId') || searchParams.get('txnid')
   const [txInfo, setTxInfo] = useState(null)
   const [resending, setResending] = useState(false)
 

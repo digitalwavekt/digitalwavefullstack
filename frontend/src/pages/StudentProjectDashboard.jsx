@@ -22,7 +22,7 @@ export default function StudentProjectDashboard() {
 
   const loadDashboard = async () => {
     try {
-      const res = await apiFetch('/api/ai-project-delivery/student/dashboard', { headers: authHeaders() })
+      const res = await apiFetch('/api/student-dashboard/me', { headers: authHeaders() })
       setData(res.data || { student: null, orders: [], internshipUpdates: [] })
       setSelectedOrderId(res.data?.orders?.[0]?.id || '')
     } catch (error) {
@@ -38,7 +38,7 @@ export default function StudentProjectDashboard() {
     if (!selectedOrderId || !question.trim()) return
     setAsking(true)
     try {
-      const res = await apiFetch('/api/ai-project-delivery/student/chatbot/ask', {
+      const res = await apiFetch('/api/student-chatbot/ask', {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ orderId: selectedOrderId, message: question }),

@@ -14,7 +14,7 @@ export default function StudentProjectLogin() {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await apiFetch('/api/ai-project-delivery/student/login', {
+      const res = await apiFetch('/api/student-auth/login', {
         method: 'POST',
         body: JSON.stringify(form),
       })

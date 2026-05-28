@@ -471,10 +471,16 @@ router.post('/student/chatbot/ask', studentAuth, async (req, res) => {
     if (error) throw error
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
 
-    const blocked = /(politics|movie|cricket|weather|stock|crypto|hack|other student|admin password)/i.test(cleanMessage)
-    const answer = blocked
-      ? `Hi ${req.student.name || 'Student'}, I can only help you with your purchased ${order.order_type === 'internship' ? 'internship and assigned project' : 'project'} details.`
-      : `Hi ${req.student.name || 'Student'}, your ${order.title} is currently at: ${friendlyProgress(order.status)}. Selected stack/program: ${order.category || order.tech_stack}. Final assets unlock after Digital Wave admin quality approval.`
+    const [{ data: assets }, { data: updates }] = await Promise.all([
+      supabase.from('project_delivery_assets').select('*').eq('order_id', orderId).maybeSingle(),
+      supabase.from('internship_updates').select('*').eq('order_id', orderId).order('created_at', { ascending: false }).limit(10),
+    ])
+
+    const blocked = /(politics|movie|cricket|weather|stock|crypto|hack|other student|admin password|password of|secret|private key)/i.test(cleanMessage)
+    const aiReply = blocked
+      ? { answer: `Hi ${req.student.name || 'Student'}, I can only help you with your purchased ${order.order_type === 'internship' ? 'internship and assigned project' : 'project'} details.` }
+      : await generateStudentChatbotResponse(order, cleanMessage, { assets: assets || {}, updates: updates || [] })
+    const answer = aiReply.answer || `Hi ${req.student.name || 'Student'}, your ${order.title} is currently at: ${friendlyProgress(order.status)}.`
 
     let sessionId = null
     const { data: session } = await supabase

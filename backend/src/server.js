@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit'
 import uploadRoutes from './routes/upload.js'
 import projectTemplateRoutes from './routes/projectTemplates.js'
 import aiProjectDeliveryRoutes from './routes/aiProjectDelivery.js'
+import studentDeliveryAliasRoutes from './routes/studentDeliveryAliases.js'
 import projectRoutes from './routes/projects.js'
 
 
@@ -174,6 +175,7 @@ app.use('/api/upload', uploadRoutes)
 app.use('/api/project-templates', projectTemplateRoutes)
 app.use('/api/ai-project-delivery', aiProjectDeliveryRoutes)
 app.use('/api/projects', projectRoutes)
+app.use('/api', studentDeliveryAliasRoutes)
 
 // ============================================
 // 404 HANDLER

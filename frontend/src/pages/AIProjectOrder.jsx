@@ -78,41 +78,23 @@ export default function AIProjectOrder() {
 
     setSubmitting(true)
     try {
-      const draftRes = await apiFetch('/api/ai-project-delivery/create-draft', {
+      const paymentRes = await apiFetch('/api/student-orders/create-payment-order', {
         method: 'POST',
         body: JSON.stringify({
           ...formData,
+          selectedProgram: selectedTemplate.slug,
           deliveryTemplateId: selectedTemplate.id,
           internshipProgramType: selectedTemplate.slug,
           techStack: selectedTemplate.name,
-          features: formData.features
+          projectRequirements: formData.features
             .split('\n')
             .map((item) => item.trim())
             .filter(Boolean),
         }),
       })
 
-      const order = draftRes.data
-      const paymentRes = await apiFetch('/api/payment/initiate', {
-        method: 'POST',
-        body: JSON.stringify({
-          amount: Number(formData.amount),
-          email: formData.email,
-          name: formData.studentName,
-          phone: formData.phone,
-          type: formData.orderType === 'internship'
-            ? 'ai_internship_project'
-            : 'ai_project_delivery',
-          referenceId: order.id,
-          productInfo: formData.orderType === 'internship'
-            ? `Digital Wave Internship + Project - ${selectedTemplate.name}`
-            : `Digital Wave Project - ${selectedTemplate.name}`,
-          orderType: formData.orderType,
-        }),
-      })
-
       toast.success('Redirecting to secure payment...')
-      submitPayuForm(paymentRes.data)
+      submitPayuForm(paymentRes.data.payment)
     } catch (error) {
       toast.error(error.message || 'Failed to start payment')
       setSubmitting(false)

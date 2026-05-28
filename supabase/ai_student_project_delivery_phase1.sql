@@ -85,7 +85,7 @@ create table if not exists ai_jobs (
   id uuid primary key default gen_random_uuid(),
   project_id uuid references ai_projects(id) on delete cascade,
   job_type text not null,
-  provider text default 'openai',
+  provider text default 'gemini',
   model text,
   prompt_hash text,
   status text default 'queued',
