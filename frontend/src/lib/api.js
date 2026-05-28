@@ -1,6 +1,8 @@
 import { useAuthStore } from '../hooks/useAuthStore'
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com'
+const API_URL = (import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com')
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '')
 const REQUEST_TIMEOUT_MS = 20000
 
 const safeJsonParse = (value) => {
@@ -36,7 +38,7 @@ export const apiFetch = async (endpoint, options = {}) => {
     ...(options.headers || {}),
   }
 
-  const token = getStoredToken()
+  const token = getStoredToken() || localStorage.getItem('studentProjectToken')
 
   if (token) {
     headers.Authorization = `Bearer ${token}`

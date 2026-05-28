@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { apiFetch } from '../lib/api'
 
 export const useSiteStore = create((set) => ({
     settings: null,
@@ -8,11 +9,7 @@ export const useSiteStore = create((set) => ({
         try {
             set({ loading: true })
 
-            const res = await fetch(
-                `${import.meta.env.VITE_API_URL}/api/settings`
-            )
-
-            const data = await res.json()
+            const data = await apiFetch('/api/settings')
 
             if (data.success) {
                 set({ settings: data.data })

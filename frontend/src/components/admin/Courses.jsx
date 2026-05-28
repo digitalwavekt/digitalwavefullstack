@@ -1,16 +1,8 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
-  Plus,
-  Edit2,
-  Trash2,
-  Clock,
-  DollarSign,
-  Users,
-  CheckCircle2,
-  Loader2,
-  Upload,
-  Image as ImageIcon,
+  Plus, Edit2, Trash2, Clock, DollarSign, Users, CheckCircle2,
+  Loader2, Upload, Image as ImageIcon, FileCode2, X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiFetch } from '../../lib/api'
@@ -28,7 +20,9 @@ export default function Courses() {
     name: '',
     description: '',
     pricePerMonth: '',
+    projectPrice: '',
     duration: [1, 2, 3, 6],
+    projectsList: '',
     status: 'active',
     thumbnail: '',
   })
@@ -45,39 +39,22 @@ export default function Courses() {
     }
   }
 
-  useEffect(() => {
-    fetchCourses()
-  }, [])
+  useEffect(() => { fetchCourses() }, [])
 
   const resetForm = () => {
     setEditingCourse(null)
     setFormData({
-      name: '',
-      description: '',
-      pricePerMonth: '',
-      duration: [1, 2, 3, 6],
-      status: 'active',
-      thumbnail: '',
+      name: '', description: '', pricePerMonth: '', projectPrice: '',
+      duration: [1, 2, 3, 6], projectsList: '', status: 'active', thumbnail: '',
     })
   }
 
   const handleThumbnailUpload = async (file) => {
     if (!file) return
-
     try {
       setUploading(true)
-
-      const uploaded = await uploadFile({
-        file,
-        bucket: 'uploads',
-        folder: 'course-thumbnails',
-      })
-
-      setFormData((prev) => ({
-        ...prev,
-        thumbnail: uploaded.publicUrl,
-      }))
-
+      const uploaded = await uploadFile({ file, bucket: 'uploads', folder: 'course-thumbnails' })
+      setFormData((prev) => ({ ...prev, thumbnail: uploaded.publicUrl }))
       toast.success('Thumbnail uploaded')
     } catch (error) {
       toast.error(error.message || 'Thumbnail upload failed')
@@ -88,9 +65,10 @@ export default function Courses() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-
     try {
       setSaving(true)
+      const projectsList = formData.projectsList
+        .split('\n').map(s => s.trim()).filter(Boolean)
 
       await apiFetch(
         editingCourse ? `/api/admin/courses/${editingCourse.id}` : '/api/admin/courses',
@@ -99,11 +77,12 @@ export default function Courses() {
           body: JSON.stringify({
             ...formData,
             pricePerMonth: Number(formData.pricePerMonth),
+            projectPrice: Number(formData.projectPrice || 0),
+            projectsList,
           }),
         }
       )
-
-      toast.success(editingCourse ? 'Course updated successfully' : 'Course created successfully')
+      toast.success(editingCourse ? 'Course updated' : 'Course created')
       setShowModal(false)
       resetForm()
       fetchCourses()
@@ -115,14 +94,13 @@ export default function Courses() {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this course?')) return
-
+    if (!confirm('Delete this course?')) return
     try {
       await apiFetch(`/api/admin/courses/${id}`, { method: 'DELETE' })
       toast.success('Course deleted')
       fetchCourses()
     } catch (error) {
-      toast.error(error.message || 'Failed to delete course')
+      toast.error(error.message || 'Failed to delete')
     }
   }
 
@@ -132,7 +110,9 @@ export default function Courses() {
       name: course.name || '',
       description: course.description || '',
       pricePerMonth: course.pricePerMonth || '',
+      projectPrice: course.projectPrice || '',
       duration: course.duration || [1, 2, 3, 6],
+      projectsList: (course.projectsList || []).join('\n'),
       status: course.status || 'active',
       thumbnail: course.thumbnail || '',
     })
@@ -142,8 +122,7 @@ export default function Courses() {
   if (loading) {
     return (
       <div className="flex items-center gap-3 text-white">
-        <Loader2 className="w-5 h-5 animate-spin" />
-        Loading courses...
+        <Loader2 className="w-5 h-5 animate-spin" /> Loading courses...
       </div>
     )
   }
@@ -153,18 +132,10 @@ export default function Courses() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Courses</h1>
-          <p className="text-gray-400 text-sm">Manage internship courses and pricing</p>
+          <p className="text-gray-400 text-sm">Manage internship & project courses. Students see these on enrollment page.</p>
         </div>
-
-        <button
-          onClick={() => {
-            resetForm()
-            setShowModal(true)
-          }}
-          className="btn-primary text-sm flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add Course
+        <button onClick={() => { resetForm(); setShowModal(true) }} className="btn-primary text-sm flex items-center gap-2">
+          <Plus className="w-4 h-4" /> Add Course
         </button>
       </div>
 
@@ -183,11 +154,7 @@ export default function Courses() {
               className="glass rounded-2xl overflow-hidden border border-white/10"
             >
               {course.thumbnail ? (
-                <img
-                  src={course.thumbnail}
-                  alt={course.name}
-                  className="w-full h-40 object-cover bg-white/5"
-                />
+                <img src={course.thumbnail} alt={course.name} className="w-full h-40 object-cover bg-white/5" />
               ) : (
                 <div className="w-full h-40 bg-white/5 flex items-center justify-center">
                   <ImageIcon className="w-10 h-10 text-gray-500" />
@@ -196,57 +163,57 @@ export default function Courses() {
 
               <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <h3 className="text-white font-semibold">{course.name}</h3>
-                    <p className="text-gray-400 text-xs mt-1">{course.description}</p>
+                    <p className="text-gray-400 text-xs mt-1 line-clamp-2">{course.description}</p>
                   </div>
-
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => openEdit(course)}
-                      className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white hover:bg-white/10"
-                    >
+                  <div className="flex gap-1 shrink-0 ml-2">
+                    <button onClick={() => openEdit(course)} className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white hover:bg-white/10">
                       <Edit2 className="w-4 h-4" />
                     </button>
-
-                    <button
-                      onClick={() => handleDelete(course.id)}
-                      className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-red-400 hover:bg-red-500/10"
-                    >
+                    <button onClick={() => handleDelete(course.id)} className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-red-400 hover:bg-red-500/10">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                <div className="space-y-3 mb-4">
+                <div className="space-y-2 mb-4">
                   <div className="flex items-center gap-2 text-sm">
                     <DollarSign className="w-4 h-4 text-green-400" />
-                    <span className="text-gray-300">
-                      ₹{Number(course.pricePerMonth || 0).toLocaleString()}/month
-                    </span>
+                    <span className="text-gray-300">Internship: ₹{Number(course.pricePerMonth || 0).toLocaleString()}/mo</span>
                   </div>
-
+                  <div className="flex items-center gap-2 text-sm">
+                    <FileCode2 className="w-4 h-4 text-orange-400" />
+                    <span className="text-gray-300">Project Only: ₹{Number(course.projectPrice || 0).toLocaleString()}</span>
+                  </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="w-4 h-4 text-blue-400" />
-                    <span className="text-gray-300">
-                      {(course.duration || []).join(', ')} months
-                    </span>
+                    <span className="text-gray-300">{(course.duration || []).join(', ')} months</span>
                   </div>
-
                   <div className="flex items-center gap-2 text-sm">
                     <Users className="w-4 h-4 text-purple-400" />
                     <span className="text-gray-300">{course.students || 0} enrolled</span>
                   </div>
                 </div>
 
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${course.status === 'active'
-                      ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                      : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
-                    }`}
-                >
-                  <CheckCircle2 className="w-3 h-3" />
-                  {course.status}
+                {(course.projectsList || []).length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs text-gray-500 mb-2">Projects ({course.projectsList.length})</p>
+                    <div className="flex flex-wrap gap-1">
+                      {course.projectsList.slice(0, 3).map((p, i) => (
+                        <span key={i} className="text-xs px-2 py-0.5 rounded bg-white/5 text-gray-400 truncate max-w-[160px]">{p}</span>
+                      ))}
+                      {course.projectsList.length > 3 && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-white/5 text-gray-500">+{course.projectsList.length - 3} more</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                  course.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
+                }`}>
+                  <CheckCircle2 className="w-3 h-3" /> {course.status}
                 </span>
               </div>
             </motion.div>
@@ -254,106 +221,91 @@ export default function Courses() {
         </div>
       )}
 
+      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" style={{ backdropFilter: 'blur(8px)' }}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass rounded-2xl p-6 w-full max-w-lg border border-white/10 max-h-[90vh] overflow-y-auto"
+            className="glass rounded-2xl p-6 w-full max-w-lg border border-white/10 max-h-[90vh] overflow-y-auto relative"
           >
+            <button onClick={() => { setShowModal(false); resetForm() }} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center">
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+
             <h2 className="text-xl font-bold text-white mb-6">
               {editingCourse ? 'Edit Course' : 'Add New Course'}
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white"
-                placeholder="Course name"
-              />
-
-              <textarea
-                required
-                rows={3}
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white resize-none"
-                placeholder="Course description"
-              />
-
-              <input
-                type="number"
-                required
-                value={formData.pricePerMonth}
-                onChange={(e) => setFormData({ ...formData, pricePerMonth: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white"
-                placeholder="Price per month"
-              />
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Course Name *</label>
+                <input type="text" required value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="e.g. MERN Stack Development" />
+              </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Thumbnail URL</label>
-                <input
-                  type="text"
-                  value={formData.thumbnail || ''}
+                <label className="block text-sm text-gray-400 mb-1">Description</label>
+                <textarea rows={2} value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white resize-none" placeholder="Course description" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Internship Price/Month (₹) *</label>
+                  <input type="number" required value={formData.pricePerMonth}
+                    onChange={(e) => setFormData({ ...formData, pricePerMonth: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="2999" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Project Only Price (₹)</label>
+                  <input type="number" value={formData.projectPrice}
+                    onChange={(e) => setFormData({ ...formData, projectPrice: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="4999" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Available Projects (one per line)</label>
+                <textarea rows={4} value={formData.projectsList}
+                  onChange={(e) => setFormData({ ...formData, projectsList: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white resize-none font-mono text-sm"
+                  placeholder={"E-Commerce Platform\nChat Application\nJob Portal"} />
+                <p className="text-xs text-gray-500 mt-1">Students will choose from these projects during enrollment.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Thumbnail</label>
+                <input type="text" value={formData.thumbnail || ''}
                   onChange={(e) => setFormData({ ...formData, thumbnail: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white"
-                  placeholder="Thumbnail image URL"
-                />
-
-                <label className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 cursor-pointer text-sm">
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="Image URL" />
+                <label className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 cursor-pointer text-sm">
                   <Upload className="w-4 h-4" />
-                  {uploading ? 'Uploading...' : 'Upload Thumbnail'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={uploading}
-                    onChange={(e) => handleThumbnailUpload(e.target.files?.[0])}
-                  />
+                  {uploading ? 'Uploading...' : 'Upload'}
+                  <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                    onChange={(e) => handleThumbnailUpload(e.target.files?.[0])} />
                 </label>
-
                 {formData.thumbnail && (
-                  <img
-                    src={formData.thumbnail}
-                    alt="Thumbnail preview"
-                    className="mt-3 w-full h-36 rounded-xl border border-white/10 object-cover bg-white/5"
-                  />
+                  <img src={formData.thumbnail} alt="Preview" className="mt-2 w-full h-32 rounded-xl border border-white/10 object-cover bg-white/5" />
                 )}
               </div>
 
-              <select
-                value={formData.status}
+              <select value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white"
-              >
-                <option value="active" className="bg-dark-800">
-                  Active
-                </option>
-                <option value="inactive" className="bg-dark-800">
-                  Inactive
-                </option>
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white">
+                <option value="active" className="bg-dark-800">Active</option>
+                <option value="inactive" className="bg-dark-800">Inactive</option>
               </select>
 
               <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false)
-                    resetForm()
-                  }}
-                  className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5"
-                >
+                <button type="button" onClick={() => { setShowModal(false); resetForm() }}
+                  className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5">
                   Cancel
                 </button>
-
-                <button
-                  type="submit"
-                  disabled={saving || uploading}
-                  className="flex-1 btn-primary disabled:opacity-60"
-                >
+                <button type="submit" disabled={saving || uploading}
+                  className="flex-1 btn-primary disabled:opacity-60">
                   {saving ? 'Saving...' : editingCourse ? 'Update' : 'Create'}
                 </button>
               </div>

@@ -2,6 +2,7 @@ import express from 'express'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { adminAuth, requirePermission } from '../middleware/adminAuth.js'
+import { finalizePaidStudentOrder } from '../utils/aiStudentAccess.js'
 
 const router = express.Router()
 
@@ -81,6 +82,7 @@ router.post('/initiate', async (req, res) => {
       productInfo,
       courseId,
       duration,
+      orderType,
     } = req.body
 
     const finalEmail = (email || authUser?.email || '').trim().toLowerCase()
@@ -133,6 +135,7 @@ router.post('/initiate', async (req, res) => {
         name: finalName,
         phone: finalPhone,
         productInfo: finalProductInfo,
+        orderType,
       },
     })
 
@@ -155,7 +158,7 @@ router.post('/initiate', async (req, res) => {
           surl: successUrl,
           furl: failureUrl,
           hash,
-          service_provider: 'payu_paisa',
+
         },
       },
     })
@@ -223,6 +226,10 @@ router.post('/success', async (req, res) => {
 
     if (data?.type === 'internship' && finalStatus === 'completed') {
       await createInternshipEnrollment(supabase, data)
+    }
+
+    if (['ai_project_delivery', 'ai_project', 'ai_internship_project'].includes(data?.type) && finalStatus === 'completed') {
+      await finalizePaidStudentOrder(supabase, data)
     }
 
     return res.redirect(
@@ -327,6 +334,25 @@ router.get('/all', adminAuth, requirePermission('manage_payments'), async (req, 
       success: false,
       message: 'Failed to fetch transactions',
     })
+  }
+})
+
+// PUBLIC: fetch minimal transaction info by txn id (safe, limited fields)
+router.get('/tx-info', async (req, res) => {
+  try {
+    const supabase = getSupabase(req)
+    const txnId = String(req.query.txnid || '').trim()
+    if (!txnId) return res.status(400).json({ success: false, message: 'txnid is required' })
+
+    const { data, error } = await supabase.from('transactions').select('txn_id,user_email,reference_id,status,amount').eq('txn_id', txnId).maybeSingle()
+    if (error) throw error
+    if (!data) return res.status(404).json({ success: false, message: 'Transaction not found' })
+
+    // return only minimal safe info
+    return res.json({ success: true, data: { txnId: data.txn_id, email: data.user_email, referenceId: data.reference_id, status: data.status, amount: data.amount } })
+  } catch (error) {
+    console.error('Fetch tx info error:', error)
+    res.status(500).json({ success: false, message: 'Failed to fetch transaction info' })
   }
 })
 
