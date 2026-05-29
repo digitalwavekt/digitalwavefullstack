@@ -14,8 +14,11 @@ import {
   Github,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { apiFetch } from '../lib/api'
+import useSiteSettings from '../hooks/useSiteSettings'
 
 export default function Contact() {
+  const { settings } = useSiteSettings()
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -39,34 +42,13 @@ export default function Contact() {
     setLoading(true)
 
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_URL
-
-      if (!apiBaseUrl) {
-        toast.error('API URL missing. Please check environment variables.')
-        return
-      }
-
-      const res = await fetch(`${apiBaseUrl}/api/contact`, {
+      const data = await apiFetch('/api/contact', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(formData),
       })
 
-      let data = {}
-
-      try {
-        data = await res.json()
-      } catch {
-        data = {
-          success: false,
-          message: 'Invalid server response',
-        }
-      }
-
-      if (!res.ok || !data.success) {
-        toast.error(data.message || `Request failed with status ${res.status}`)
+      if (!data.success) {
+        toast.error(data.message || 'Message submission failed')
         return
       }
 
@@ -87,11 +69,24 @@ export default function Contact() {
     }
   }
 
+  const contactSettings = settings?.contact || {}
+  const socialSettings = settings?.social || {}
+  const addressParts = [
+    contactSettings.address,
+    contactSettings.city,
+    contactSettings.state,
+    contactSettings.pincode,
+    contactSettings.country,
+  ].filter(Boolean)
+  const address = addressParts.join(', ')
+  const mapQuery = encodeURIComponent(address || contactSettings.city || contactSettings.state || '')
+  const mapSrc = contactSettings.mapUrl || (mapQuery ? `https://www.google.com/maps?q=${mapQuery}&output=embed` : '')
+
   const contactInfo = [
     {
       icon: Phone,
       label: 'Phone',
-      value: '+91 95491 45596',
+      value: contactSettings.phone,
       color: 'text-blue-400',
       bgColor: 'bg-blue-500/10',
       borderColor: 'border-blue-500/20',
@@ -99,7 +94,7 @@ export default function Contact() {
     {
       icon: Mail,
       label: 'Email',
-      value: 'info@digitalwaveit.com',
+      value: contactSettings.email || contactSettings.supportEmail,
       color: 'text-purple-400',
       bgColor: 'bg-purple-500/10',
       borderColor: 'border-purple-500/20',
@@ -107,7 +102,7 @@ export default function Contact() {
     {
       icon: MapPin,
       label: 'Address',
-      value: 'Jaipur, Rajasthan, India',
+      value: address,
       color: 'text-pink-400',
       bgColor: 'bg-pink-500/10',
       borderColor: 'border-pink-500/20',
@@ -115,12 +110,19 @@ export default function Contact() {
     {
       icon: Clock,
       label: 'Working Hours',
-      value: 'Mon - Sat: 9:00 AM - 7:00 PM',
+      value: contactSettings.workingHours,
       color: 'text-green-400',
       bgColor: 'bg-green-500/10',
       borderColor: 'border-green-500/20',
     },
-  ]
+  ].filter((item) => item.value)
+
+  const socialLinks = [
+    { icon: Linkedin, href: socialSettings.linkedin, color: 'hover:text-blue-400' },
+    { icon: Twitter, href: socialSettings.twitter, color: 'hover:text-cyan-400' },
+    { icon: Instagram, href: socialSettings.instagram, color: 'hover:text-pink-400' },
+    { icon: Github, href: socialSettings.github, color: 'hover:text-purple-400' },
+  ].filter((social) => social.href)
 
   return (
     <>
@@ -180,57 +182,40 @@ export default function Contact() {
                 ))}
               </div>
 
-              <div className="glass rounded-2xl overflow-hidden border border-white/10 h-64 mb-8">
-                <iframe
-                  src="https://www.google.com/maps?q=Jaipur%20Rajasthan%20India&output=embed"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0, filter: 'invert(90%) hue-rotate(180deg)' }}
-                  allowFullScreen=""
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Digital Wave Location"
-                />
-              </div>
-
-              <div>
-                <h3 className="text-white font-semibold mb-4">Follow Us</h3>
-
-                <div className="flex gap-3">
-                  {[
-                    {
-                      icon: Linkedin,
-                      href: 'https://www.linkedin.com/in/yogesh-kumar-saini-030bbb1bb',
-                      color: 'hover:text-blue-400',
-                    },
-                    {
-                      icon: Twitter,
-                      href: '#',
-                      color: 'hover:text-cyan-400',
-                    },
-                    {
-                      icon: Instagram,
-                      href: '#',
-                      color: 'hover:text-pink-400',
-                    },
-                    {
-                      icon: Github,
-                      href: 'https://github.com/digitalwavekt',
-                      color: 'hover:text-purple-400',
-                    },
-                  ].map((social, i) => (
-                    <a
-                      key={i}
-                      href={social.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={`w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 ${social.color} hover:bg-white/10 transition-all`}
-                    >
-                      <social.icon className="w-5 h-5" />
-                    </a>
-                  ))}
+              {mapSrc && (
+                <div className="glass rounded-2xl overflow-hidden border border-white/10 h-64 mb-8">
+                  <iframe
+                    src={mapSrc}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0, filter: 'invert(90%) hue-rotate(180deg)' }}
+                    allowFullScreen=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    title="Digital Wave Location"
+                  />
                 </div>
-              </div>
+              )}
+
+              {socialLinks.length > 0 && (
+                <div>
+                  <h3 className="text-white font-semibold mb-4">Follow Us</h3>
+
+                  <div className="flex gap-3">
+                    {socialLinks.map((social, i) => (
+                      <a
+                        key={i}
+                        href={social.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 ${social.color} hover:bg-white/10 transition-all`}
+                      >
+                        <social.icon className="w-5 h-5" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
 
             <motion.div
