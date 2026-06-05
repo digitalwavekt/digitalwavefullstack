@@ -1,15 +1,18 @@
 import { motion } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Quote, ChevronLeft, ChevronRight, Star } from 'lucide-react'
+import { apiFetch } from '../../lib/api'
+import useSiteSettings from '../../hooks/useSiteSettings'
+import ReviewFormSection from './ReviewFormSection'
 
-const testimonials = [
+const fallbackTestimonials = [
   {
     name: 'Rahul Sharma',
     role: 'Final Year Student',
     college: 'IIT Delhi',
     rating: 5,
-    text: 'Digital Wave helped me build an amazing MERN stack project for my final year. The mentorship and code quality were exceptional. Got an A+ grade!',
+    text: 'Digital Wave helped me build an amazing MERN stack project for my final year. The mentorship and code quality were exceptional.',
     avatar: 'RS',
   },
   {
@@ -17,7 +20,7 @@ const testimonials = [
     role: 'Software Developer',
     company: 'TCS',
     rating: 5,
-    text: 'The internship program completely transformed my career. The live project experience and Google Meet sessions with industry experts were invaluable.',
+    text: 'The internship program transformed my career. The live project experience and mentor sessions were invaluable.',
     avatar: 'PP',
   },
   {
@@ -25,38 +28,74 @@ const testimonials = [
     role: 'Startup Founder',
     company: 'TechStart Pvt Ltd',
     rating: 5,
-    text: 'They built our complete CRM system from scratch. The team understood our requirements perfectly and delivered ahead of schedule. Highly recommended!',
+    text: 'They built our CRM system with clear communication and delivered ahead of schedule.',
     avatar: 'AK',
   },
-  {
-    name: 'Sneha Gupta',
-    role: 'CS Student',
-    college: 'NIT Trichy',
-    rating: 5,
-    text: 'Best decision to choose Digital Wave for my AI/ML project. The documentation was thorough and the model accuracy exceeded my expectations.',
-    avatar: 'SG',
-  },
-  {
-    name: 'Vikram Singh',
-    role: 'Product Manager',
-    company: 'Infosys',
-    rating: 5,
-    text: 'Professional team with excellent communication. Our mobile app was delivered with all features working perfectly. Will definitely work with them again.',
-    avatar: 'VS',
-  },
 ]
+
+const getAvatar = (name = 'DW') =>
+  name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 
 export default function TestimonialsSection() {
   const [ref, inView] = useInView({ threshold: 0.1, triggerOnce: true })
   const [current, setCurrent] = useState(0)
+  const [userReviews, setUserReviews] = useState([])
+  const { settings } = useSiteSettings()
 
+  const loadReviews = async () => {
+    try {
+      const data = await apiFetch('/api/reviews')
+      setUserReviews(data.data || [])
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  useEffect(() => {
+    loadReviews()
+  }, [])
+
+  const testimonials = useMemo(() => {
+    const adminTestimonials = Array.isArray(settings?.testimonials)
+      ? settings.testimonials
+      : []
+
+    const approvedReviews = userReviews.map((review) => ({
+      name: review.name,
+      role: review.role || 'Digital Wave Client',
+      company: 'Verified User',
+      rating: review.rating,
+      text: review.comment,
+      avatar: getAvatar(review.name),
+    }))
+
+    const merged = [...approvedReviews, ...adminTestimonials]
+      .filter((item) => item?.name && item?.text)
+      .map((item) => ({
+        ...item,
+        rating: Number(item.rating) || 5,
+        avatar: item.avatar || getAvatar(item.name),
+      }))
+
+    return merged.length ? merged : fallbackTestimonials
+  }, [settings?.testimonials, userReviews])
+
+  useEffect(() => {
+    if (current >= testimonials.length) setCurrent(0)
+  }, [current, testimonials.length])
+
+  const active = testimonials[current] || testimonials[0]
   const next = () => setCurrent((prev) => (prev + 1) % testimonials.length)
   const prev = () => setCurrent((prev) => (prev - 1 + testimonials.length) % testimonials.length)
 
   return (
     <section className="relative py-24 section-padding" ref={ref}>
       <div className="max-w-7xl mx-auto">
-        {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
@@ -74,14 +113,13 @@ export default function TestimonialsSection() {
           </p>
         </motion.div>
 
-        {/* Testimonial Card */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.6, delay: 0.2 }}
           className="max-w-4xl mx-auto"
         >
-          <div className="glass rounded-3xl p-8 md:p-12 relative">
+          <div className="glass rounded-2xl p-8 md:p-12 relative">
             <Quote className="absolute top-8 right-8 w-12 h-12 text-blue-500/20" />
 
             <motion.div
@@ -91,33 +129,29 @@ export default function TestimonialsSection() {
               exit={{ opacity: 0, x: -50 }}
               transition={{ duration: 0.4 }}
             >
-              {/* Stars */}
               <div className="flex gap-1 mb-6">
-                {Array.from({ length: testimonials[current].rating }).map((_, i) => (
+                {Array.from({ length: active.rating }).map((_, i) => (
                   <Star key={i} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
                 ))}
               </div>
 
-              {/* Quote */}
               <p className="text-lg md:text-xl text-gray-300 leading-relaxed mb-8 italic">
-                "{testimonials[current].text}"
+                "{active.text}"
               </p>
 
-              {/* Author */}
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-lg">
-                  {testimonials[current].avatar}
+                  {active.avatar}
                 </div>
                 <div>
-                  <h4 className="text-white font-semibold">{testimonials[current].name}</h4>
+                  <h4 className="text-white font-semibold">{active.name}</h4>
                   <p className="text-gray-400 text-sm">
-                    {testimonials[current].role} • {testimonials[current].college || testimonials[current].company}
+                    {active.role} - {active.college || active.company || 'Digital Wave'}
                   </p>
                 </div>
               </div>
             </motion.div>
 
-            {/* Navigation */}
             <div className="flex items-center justify-between mt-8 pt-6 border-t border-white/5">
               <div className="flex gap-2">
                 {testimonials.map((_, i) => (
@@ -127,6 +161,7 @@ export default function TestimonialsSection() {
                     className={`w-2 h-2 rounded-full transition-all duration-300 ${
                       i === current ? 'w-8 bg-blue-500' : 'bg-white/20 hover:bg-white/40'
                     }`}
+                    aria-label={`Show testimonial ${i + 1}`}
                   />
                 ))}
               </div>
@@ -134,12 +169,14 @@ export default function TestimonialsSection() {
                 <button
                   onClick={prev}
                   className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                  aria-label="Previous testimonial"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <button
                   onClick={next}
                   className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                  aria-label="Next testimonial"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -147,6 +184,8 @@ export default function TestimonialsSection() {
             </div>
           </div>
         </motion.div>
+
+        <ReviewFormSection onSubmitted={loadReviews} />
       </div>
     </section>
   )

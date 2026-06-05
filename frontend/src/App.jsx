@@ -1,11 +1,12 @@
 import { Routes, Route } from 'react-router-dom'
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import Navbar from './components/layout/Navbar'
 import Footer from './components/layout/Footer'
 import ScrollToTop from './components/layout/ScrollToTop'
 import LoadingScreen from './components/layout/LoadingScreen'
 import VerifyCertificate from './pages/VerifyCertificate'
+import { useTheme } from './hooks/useTheme'
 
 // Lazy load pages for performance
 const Home = lazy(() => import('./pages/Home'))
@@ -20,6 +21,7 @@ const AIProjectOrder = lazy(() => import('./pages/AIProjectOrder'))
 const AIProjectPortal = lazy(() => import('./pages/AIProjectPortal'))
 const Contact = lazy(() => import('./pages/Contact'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
+const UserLogin = lazy(() => import('./pages/UserLogin'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'))
 const StudentProjectLogin = lazy(() => import('./pages/StudentProjectLogin'))
@@ -30,8 +32,14 @@ const CertificateDownload = lazy(() => import('./pages/CertificateDownload'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
 function App() {
+  const hydrateTheme = useTheme((state) => state.hydrateTheme)
+
+  useEffect(() => {
+    hydrateTheme()
+  }, [hydrateTheme])
+
   return (
-    <div className="min-h-screen bg-dark-900 text-white relative">
+    <div className="min-h-screen bg-dark-900 text-white relative app-shell">
       <ScrollToTop />
       <Navbar />
 
@@ -53,6 +61,7 @@ function App() {
             <Route path="/student/project-dashboard" element={<StudentProjectDashboard />} />
 
             <Route path="/contact" element={<Contact />} />
+            <Route path="/login" element={<UserLogin />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard/*" element={<AdminDashboard />} />
             <Route path="/student/dashboard" element={<StudentDashboard />} />

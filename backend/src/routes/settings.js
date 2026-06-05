@@ -12,6 +12,11 @@ const defaultSettings = {
       'Leading IT solutions provider offering website development, mobile apps, CRM solutions, college projects, and industry internship programs.',
     logo: '',
     favicon: '',
+    founderName: 'Yogesh Kumar Saini',
+    founderTitle: 'Founder & CEO',
+    aboutTitle: 'Building the Future of Technology & Education',
+    aboutDescription:
+      'Digital Wave IT Solutions Pvt Ltd is a technology company committed to delivering exceptional web solutions, mobile applications, and industry-ready training programs.',
   },
   contact: {
     email: 'info@digitalwaveit.com',
@@ -49,7 +54,16 @@ const defaultSettings = {
     signerTitle: 'Founder, Digital Wave IT Solutions',
     template: 'modern',
   },
-  team: [],
+  team: [
+    {
+      id: 1,
+      name: 'Yogesh Kumar Saini',
+      role: 'Founder & CEO',
+      image: 'YS',
+      color: 'from-blue-500 to-cyan-500',
+    },
+  ],
+  testimonials: [],
 }
 
 const getSupabase = (req) => {

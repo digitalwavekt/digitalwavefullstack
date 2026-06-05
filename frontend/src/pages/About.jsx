@@ -5,9 +5,10 @@ import {
   Target, Lightbulb, Heart, Users, Award, TrendingUp,
   Code2, Globe, Smartphone, Database, GraduationCap, Shield
 } from 'lucide-react'
+import useSiteSettings from '../hooks/useSiteSettings'
 
-const team = [
-  { name: 'Rahul Verma', role: 'Founder & CEO', image: 'RV', color: 'from-blue-500 to-cyan-500' },
+const fallbackTeam = [
+  { name: 'Yogesh Kumar Saini', role: 'Founder & CEO', image: 'YS', color: 'from-blue-500 to-cyan-500' },
   { name: 'Priya Sharma', role: 'Tech Lead', image: 'PS', color: 'from-purple-500 to-pink-500' },
   { name: 'Amit Kumar', role: 'Project Manager', image: 'AK', color: 'from-orange-500 to-yellow-500' },
   { name: 'Sneha Gupta', role: 'HR & Operations', image: 'SG', color: 'from-green-500 to-emerald-500' },
@@ -24,6 +25,24 @@ const milestones = [
 
 export default function About() {
   const [ref, inView] = useInView({ threshold: 0.1, triggerOnce: true })
+  const { settings } = useSiteSettings()
+  const general = settings?.general || {}
+  const team = Array.isArray(settings?.team) && settings.team.length
+    ? settings.team
+    : [
+        {
+          ...fallbackTeam[0],
+          name: general.founderName || fallbackTeam[0].name,
+          role: general.founderTitle || fallbackTeam[0].role,
+          image: (general.founderName || fallbackTeam[0].name)
+            .split(' ')
+            .map((part) => part[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase(),
+        },
+        ...fallbackTeam.slice(1),
+      ]
 
   return (
     <>
@@ -44,14 +63,14 @@ export default function About() {
               About Us
             </span>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
-              Building the Future of <br />
-              <span className="gradient-text">Technology & Education</span>
+              {(general.aboutTitle || 'Building the Future of Technology & Education').split(' ').slice(0, -3).join(' ') || 'Building the Future of'} <br />
+              <span className="gradient-text">
+                {(general.aboutTitle || 'Building the Future of Technology & Education').split(' ').slice(-3).join(' ')}
+              </span>
             </h1>
             <p className="text-gray-400 max-w-3xl mx-auto text-lg leading-relaxed">
-              Digital Wave IT Solutions Pvt Ltd is a technology company committed to delivering 
-              exceptional web solutions, mobile applications, and industry-ready training programs. 
-              We believe in empowering the next generation of tech professionals through practical, 
-              hands-on learning experiences.
+              {general.aboutDescription ||
+                'Digital Wave IT Solutions Pvt Ltd is a technology company committed to delivering exceptional web solutions, mobile applications, and industry-ready training programs. We believe in empowering the next generation of tech professionals through practical, hands-on learning experiences.'}
             </p>
           </motion.div>
 
@@ -126,9 +145,17 @@ export default function About() {
                   transition={{ delay: i * 0.1 }}
                   className="glass rounded-2xl p-6 text-center border border-white/10 hover:border-white/20 transition-colors"
                 >
-                  <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${member.color} flex items-center justify-center mx-auto mb-4 text-white font-bold text-xl`}>
-                    {member.image}
-                  </div>
+                  {member.photo || member.imageUrl ? (
+                    <img
+                      src={member.photo || member.imageUrl}
+                      alt={member.name}
+                      className="w-20 h-20 rounded-full object-cover mx-auto mb-4 border border-white/10"
+                    />
+                  ) : (
+                    <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${member.color || 'from-blue-500 to-purple-500'} flex items-center justify-center mx-auto mb-4 text-white font-bold text-xl`}>
+                      {member.image || member.name?.slice(0, 2)?.toUpperCase()}
+                    </div>
+                  )}
                   <h4 className="text-white font-semibold">{member.name}</h4>
                   <p className="text-gray-400 text-sm">{member.role}</p>
                 </motion.div>

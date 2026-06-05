@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, User, LogOut, Shield } from 'lucide-react'
+import { Menu, X, User, LogOut, Shield, Moon, Sun } from 'lucide-react'
 import { useAuthStore } from '../../hooks/useAuthStore'
 import useSiteSettings from '../../hooks/useSiteSettings'
+import { useTheme } from '../../hooks/useTheme'
 
 const navLinks = [
   { name: 'Home', path: '/' },
@@ -24,6 +25,7 @@ export default function Navbar() {
 
   const { user, isAdmin, logout } = useAuthStore()
   const { settings } = useSiteSettings()
+  const { theme, toggleTheme } = useTheme()
 
   const general = settings?.general || {}
 
@@ -118,6 +120,15 @@ export default function Navbar() {
 
         {/* AUTH */}
         <div className="hidden lg:flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Toggle dark or bright mode"
+            title={theme === 'dark' ? 'Bright mode' : 'Dark mode'}
+          >
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+
           {user ? (
             <div className="flex items-center gap-3">
               {isAdmin && (
@@ -149,7 +160,7 @@ export default function Navbar() {
           ) : (
             <div className="flex items-center gap-3">
               <Link
-                to="/admin/login"
+                to="/login"
                 className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
               >
                 Login
@@ -203,6 +214,14 @@ export default function Navbar() {
               ))}
 
               <div className="border-t border-white/5 pt-4 mt-2 flex flex-col gap-2">
+                <button
+                  onClick={toggleTheme}
+                  className="px-4 py-3 text-sm text-gray-300 text-left flex items-center gap-2"
+                >
+                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                  {theme === 'dark' ? 'Bright Mode' : 'Dark Mode'}
+                </button>
+
                 {user ? (
                   <>
                     <Link
@@ -222,10 +241,17 @@ export default function Navbar() {
                 ) : (
                   <>
                     <Link
-                      to="/admin/login"
+                      to="/login"
                       className="px-4 py-3 text-sm text-gray-300"
                     >
                       Login
+                    </Link>
+
+                    <Link
+                      to="/admin/login"
+                      className="px-4 py-3 text-sm text-gray-300"
+                    >
+                      Admin Login
                     </Link>
 
                     <Link

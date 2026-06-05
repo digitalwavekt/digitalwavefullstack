@@ -15,6 +15,10 @@ import {
   AlertTriangle,
   Loader2,
   Upload,
+  Star,
+  Users,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { uploadFile } from '../../lib/uploadFile'
@@ -57,6 +61,9 @@ export default function SettingsPanel() {
   const [generalSettings, setGeneralSettings] = useState({})
   const [contactSettings, setContactSettings] = useState({})
   const [socialSettings, setSocialSettings] = useState({})
+  const [teamSettings, setTeamSettings] = useState([])
+  const [testimonialSettings, setTestimonialSettings] = useState([])
+  const [reviews, setReviews] = useState([])
   const [paymentSettings, setPaymentSettings] = useState({
     payuMode: 'test',
     currency: 'INR',
@@ -66,6 +73,9 @@ export default function SettingsPanel() {
     { id: 'general', label: 'General', icon: Globe },
     { id: 'contact', label: 'Contact Info', icon: MapPin },
     { id: 'social', label: 'Social Links', icon: Facebook },
+    { id: 'team', label: 'Team', icon: Users },
+    { id: 'testimonials', label: 'Testimonials', icon: Star },
+    { id: 'reviews', label: 'Reviews', icon: CheckCircle2 },
     { id: 'payment', label: 'Payment', icon: Mail },
   ]
 
@@ -81,12 +91,22 @@ export default function SettingsPanel() {
       setGeneralSettings(settingsData.general || {})
       setContactSettings(settingsData.contact || {})
       setSocialSettings(settingsData.social || {})
+      setTeamSettings(settingsData.team || [])
+      setTestimonialSettings(settingsData.testimonials || [])
       setPaymentSettings(
         settingsData.payment || {
           payuMode: 'test',
           currency: 'INR',
         }
       )
+
+      try {
+        const reviewData = await authFetch('/api/reviews/admin')
+        setReviews(reviewData.data || [])
+      } catch (reviewError) {
+        console.warn('Reviews are not available yet:', reviewError.message)
+        setReviews([])
+      }
     } catch (error) {
       toast.error(error.message || 'Failed to load settings')
     } finally {
@@ -102,6 +122,8 @@ export default function SettingsPanel() {
     if (activeTab === 'general') return generalSettings
     if (activeTab === 'contact') return contactSettings
     if (activeTab === 'social') return socialSettings
+    if (activeTab === 'team') return teamSettings
+    if (activeTab === 'testimonials') return testimonialSettings
 
     if (activeTab === 'payment') {
       return {
@@ -111,6 +133,19 @@ export default function SettingsPanel() {
     }
 
     return {}
+  }
+
+  const handleReviewStatus = async (id, status) => {
+    try {
+      await authFetch(`/api/reviews/admin/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      })
+      toast.success(`Review ${status}`)
+      await loadSettings()
+    } catch (error) {
+      toast.error(error.message || 'Failed to update review')
+    }
   }
 
   const handleSave = async () => {
@@ -221,6 +256,22 @@ export default function SettingsPanel() {
                   setGeneralSettings({ ...generalSettings, tagline: v })
                 }
               />
+
+              <Input
+                label="Founder / CEO Name"
+                value={generalSettings.founderName}
+                onChange={(v) =>
+                  setGeneralSettings({ ...generalSettings, founderName: v })
+                }
+              />
+
+              <Input
+                label="Founder / CEO Title"
+                value={generalSettings.founderTitle}
+                onChange={(v) =>
+                  setGeneralSettings({ ...generalSettings, founderTitle: v })
+                }
+              />
             </div>
 
             <Textarea
@@ -228,6 +279,22 @@ export default function SettingsPanel() {
               value={generalSettings.description}
               onChange={(v) =>
                 setGeneralSettings({ ...generalSettings, description: v })
+              }
+            />
+
+            <Input
+              label="About Page Title"
+              value={generalSettings.aboutTitle}
+              onChange={(v) =>
+                setGeneralSettings({ ...generalSettings, aboutTitle: v })
+              }
+            />
+
+            <Textarea
+              label="About Page Description"
+              value={generalSettings.aboutDescription}
+              onChange={(v) =>
+                setGeneralSettings({ ...generalSettings, aboutDescription: v })
               }
             />
 
@@ -418,6 +485,101 @@ export default function SettingsPanel() {
           </div>
         )}
 
+        {activeTab === 'team' && (
+          <DynamicListEditor
+            title="Team Members"
+            items={teamSettings}
+            emptyItem={{
+              name: '',
+              role: '',
+              image: '',
+              photo: '',
+              color: 'from-blue-500 to-purple-500',
+            }}
+            fields={[
+              ['name', 'Name'],
+              ['role', 'Role'],
+              ['image', 'Initials'],
+              ['photo', 'Photo URL'],
+              ['color', 'Gradient Class'],
+            ]}
+            onChange={setTeamSettings}
+          />
+        )}
+
+        {activeTab === 'testimonials' && (
+          <DynamicListEditor
+            title="Manual Testimonials"
+            items={testimonialSettings}
+            emptyItem={{
+              name: '',
+              role: '',
+              company: '',
+              rating: 5,
+              text: '',
+              avatar: '',
+            }}
+            fields={[
+              ['name', 'Name'],
+              ['role', 'Role'],
+              ['company', 'Company/College'],
+              ['rating', 'Rating'],
+              ['text', 'Comment'],
+              ['avatar', 'Initials'],
+            ]}
+            onChange={setTestimonialSettings}
+          />
+        )}
+
+        {activeTab === 'reviews' && (
+          <div className="space-y-4">
+            <h3 className="text-white font-semibold">User Reviews</h3>
+            {reviews.length === 0 ? (
+              <p className="text-gray-400 text-sm">No user reviews yet.</p>
+            ) : (
+              reviews.map((review) => (
+                <div key={review.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-white font-semibold">{review.name}</p>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-400">
+                          {review.status}
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs mb-2">{review.email} - {review.role}</p>
+                      <div className="flex gap-1 mb-3">
+                        {Array.from({ length: Number(review.rating) || 5 }).map((_, i) => (
+                          <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                        ))}
+                      </div>
+                      <p className="text-gray-300 text-sm">{review.comment}</p>
+                    </div>
+
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => handleReviewStatus(review.id, 'approved')}
+                        className="w-10 h-10 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 flex items-center justify-center"
+                        title="Approve review"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleReviewStatus(review.id, 'rejected')}
+                        className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center"
+                        title="Reject review"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {activeTab !== 'reviews' && (
         <div className="flex justify-end mt-8 pt-6 border-t border-white/5">
           <button
             onClick={handleSave}
@@ -437,7 +599,74 @@ export default function SettingsPanel() {
             )}
           </button>
         </div>
+        )}
       </motion.div>
+    </div>
+  )
+}
+
+function DynamicListEditor({ title, items = [], emptyItem, fields, onChange }) {
+  const updateItem = (index, key, value) => {
+    onChange(
+      items.map((item, i) =>
+        i === index
+          ? {
+              ...item,
+              [key]: key === 'rating' ? Number(value) : value,
+            }
+          : item
+      )
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="text-white font-semibold">{title}</h3>
+        <button
+          type="button"
+          onClick={() => onChange([...items, { ...emptyItem, id: Date.now() }])}
+          className="btn-secondary text-sm"
+        >
+          Add
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-gray-400 text-sm">No items added yet.</p>
+      ) : (
+        items.map((item, index) => (
+          <div key={item.id || index} className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {fields.map(([key, label]) => (
+                key === 'text' ? (
+                  <Textarea
+                    key={key}
+                    label={label}
+                    value={item[key]}
+                    onChange={(value) => updateItem(index, key, value)}
+                  />
+                ) : (
+                  <Input
+                    key={key}
+                    label={label}
+                    value={item[key]}
+                    onChange={(value) => updateItem(index, key, value)}
+                  />
+                )
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onChange(items.filter((_, i) => i !== index))}
+              className="px-4 py-2 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 text-sm"
+            >
+              Remove
+            </button>
+          </div>
+        ))
+      )}
     </div>
   )
 }

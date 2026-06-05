@@ -21,6 +21,7 @@ import adminRoutes from './routes/admin.js'
 import collegeProjectRoutes from './routes/collegeProject.js'
 import certificateRoutes from './routes/certificate.js'
 import settingsRoutes from './routes/settings.js'
+import reviewRoutes from './routes/reviews.js'
 import { seedAdmin } from './utils/seedAdmin.js'
 // Config
 import { connectDB } from './config/database.js'
@@ -171,6 +172,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/college-project', collegeProjectRoutes)
 app.use('/api/certificate', certificateRoutes)
 app.use('/api/settings', settingsRoutes)
+app.use('/api/reviews', reviewRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/project-templates', projectTemplateRoutes)
 app.use('/api/ai-project-delivery', aiProjectDeliveryRoutes)
