@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async'
 import { useNavigate } from 'react-router-dom'
 import { Shield, Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react'
 import { useAuthStore } from '../hooks/useAuthStore'
+import AdminForgotPasswordModal from '../components/AdminForgotPasswordModal'
 import toast from 'react-hot-toast'
 
 export default function AdminLogin() {
@@ -11,6 +12,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
 
   const navigate = useNavigate()
   const { setUser, setToken } = useAuthStore()
@@ -119,6 +121,16 @@ export default function AdminLogin() {
                 </div>
               </div>
 
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setForgotPasswordOpen(true)}
+                  className="text-sm text-blue-400 hover:text-blue-300 transition"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
               <button
                 type="submit"
                 disabled={loading}
@@ -141,6 +153,11 @@ export default function AdminLogin() {
           </div>
         </motion.div>
       </div>
+
+      <AdminForgotPasswordModal
+        isOpen={forgotPasswordOpen}
+        onClose={() => setForgotPasswordOpen(false)}
+      />
     </>
   )
 }

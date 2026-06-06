@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { OAuth2Client } from 'google-auth-library'
 import { successResponse, errorResponse } from '../utils/response.js'
+import { sendAdminOTPEmail } from '../utils/studentMailer.js'
 
 const router = express.Router()
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
@@ -791,6 +792,183 @@ router.delete('/subadmin/:id', adminMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Delete failed',
+    })
+  }
+})
+
+// ==================== ADMIN FORGOT PASSWORD ====================
+
+// Request OTP for password reset
+router.post('/admin-forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required',
+      })
+    }
+
+    const normalizedEmail = email.trim().toLowerCase()
+    const supabase = getSupabase(req)
+
+    // Find admin by email
+    const { data: admin, error } = await supabase
+      .from('admins')
+      .select('id,name,email,status')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (error || !admin) {
+      // Don't reveal if email exists (security)
+      return res.json({
+        success: true,
+        message: 'If email exists, OTP has been sent',
+      })
+    }
+
+    if (admin.status !== 'active') {
+      return res.json({
+        success: true,
+        message: 'If email exists, OTP has been sent',
+      })
+    }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const otpExpire = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+    // Store OTP in database
+    const { error: updateError } = await supabase
+      .from('admins')
+      .update({
+        reset_otp: otp,
+        otp_expires_at: otpExpire.toISOString(),
+      })
+      .eq('id', admin.id)
+
+    if (updateError) {
+      console.error('OTP storage error:', updateError)
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to generate OTP',
+      })
+    }
+
+    // Send OTP via email
+    const emailSent = await sendAdminOTPEmail({
+      to: admin.email,
+      name: admin.name,
+      otp,
+    })
+
+    if (!emailSent) {
+      return res.json({
+        success: true,
+        message: 'If email exists, OTP has been sent (but SMTP not configured - check console)',
+      })
+    }
+
+    res.json({
+      success: true,
+      message: 'OTP sent to registered email',
+    })
+  } catch (error) {
+    console.error('Admin forgot password error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process request',
+    })
+  }
+})
+
+// Verify OTP and reset password
+router.post('/admin-reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, OTP and new password are required',
+      })
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long',
+      })
+    }
+
+    const normalizedEmail = email.trim().toLowerCase()
+    const supabase = getSupabase(req)
+
+    // Find admin and verify OTP
+    const { data: admin, error } = await supabase
+      .from('admins')
+      .select('id,name,email,reset_otp,otp_expires_at')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (error || !admin) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or OTP',
+      })
+    }
+
+    // Check if OTP matches
+    if (admin.reset_otp !== otp) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid OTP',
+      })
+    }
+
+    // Check if OTP expired
+    const now = new Date()
+    const expiresAt = new Date(admin.otp_expires_at)
+
+    if (now > expiresAt) {
+      return res.status(401).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one',
+      })
+    }
+
+    // Hash new password
+    const passwordHash = await bcrypt.hash(newPassword, 10)
+
+    // Update password and clear OTP
+    const { error: updateError } = await supabase
+      .from('admins')
+      .update({
+        password_hash: passwordHash,
+        reset_otp: null,
+        otp_expires_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', admin.id)
+
+    if (updateError) {
+      console.error('Password update error:', updateError)
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to reset password',
+      })
+    }
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully',
+    })
+  } catch (error) {
+    console.error('Admin reset password error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password',
     })
   }
 })
