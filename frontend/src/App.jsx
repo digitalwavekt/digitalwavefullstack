@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { Suspense, lazy, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import Navbar from './components/layout/Navbar'
@@ -64,6 +64,7 @@ function App() {
 
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<UserLogin />} />
+            <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard/*" element={<AdminDashboard />} />
             <Route path="/student/dashboard" element={<StudentDashboard />} />

@@ -113,25 +113,37 @@ router.get('/dashboard', studentAuth, async (req, res) => {
       certificateAvailable = true
     }
 
+    // Fetch orders for this student
+    const supabase = getSupabase(req)
+    const { data: ordersData } = await supabase
+      .from('ai_project_orders')
+      .select('*')
+      .eq('user_email', req.user.email)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
     res.json({
       success: true,
       data: {
-        name: data.name,
-        email: data.email,
-        courseName: data.course_name,
-        duration: data.duration,
-        startDate: data.start_date,
-        endDate: data.end_date,
-        status: data.status,
-        progress: data.progress,
-        classesAttended: data.classes_attended,
-        totalClasses: data.total_classes,
-        assignmentsCompleted: data.assignments_completed,
-        certificateAvailable,
-        certificateId: data.certificate_id,
-        googleMeetEmail: data.google_meet_email,
-        googleMeetPassword: data.google_meet_password,
-        upcomingClasses: data.upcoming_classes || []
+        student: {
+          name: data.name,
+          email: data.email,
+          courseName: data.course_name,
+          duration: data.duration,
+          startDate: data.start_date,
+          endDate: data.end_date,
+          status: data.status,
+          progress: data.progress,
+          classesAttended: data.classes_attended,
+          totalClasses: data.total_classes,
+          assignmentsCompleted: data.assignments_completed,
+          certificateAvailable,
+          certificateId: data.certificate_id,
+          googleMeetEmail: data.google_meet_email,
+          googleMeetPassword: data.google_meet_password,
+          upcomingClasses: data.upcoming_classes || []
+        },
+        orders: ordersData || []
       }
     })
   } catch (error) {

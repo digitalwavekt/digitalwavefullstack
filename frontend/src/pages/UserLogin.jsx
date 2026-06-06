@@ -50,13 +50,12 @@ export default function UserLogin() {
             Login to rate Digital Wave and share your project or internship experience.
           </p>
 
-          <div className="rounded-xl bg-white/5 border border-white/10 p-4 mb-6">
+          <div className="rounded-xl bg-white/5 border border-white/10 p-4 mb-6 flex justify-center">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
               onError={() => toast.error('Google login failed')}
               theme="filled_black"
               size="large"
-              width="100%"
             />
           </div>
 

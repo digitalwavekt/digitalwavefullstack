@@ -27,7 +27,16 @@ const normalizeReview = (review) => ({
 
 router.get('/', async (req, res) => {
   try {
-    const supabase = getSupabase(req)
+    // If Supabase not configured, return empty array
+    if (!req.app.locals.db || req.app.locals.db.type !== 'supabase' || !req.app.locals.db.connection) {
+      console.log('⚠️ Supabase not configured, returning empty reviews')
+      return res.json({
+        success: true,
+        data: [],
+      })
+    }
+
+    const supabase = req.app.locals.db.connection
     const { data, error } = await supabase
       .from('user_reviews')
       .select('id,name,email,role,rating,comment,status,created_at')

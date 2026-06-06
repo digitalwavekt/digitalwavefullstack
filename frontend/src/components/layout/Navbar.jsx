@@ -171,6 +171,13 @@ export default function Navbar() {
               </Link>
 
               <Link
+                to="/admin/login"
+                className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
+              >
+                Admin Login
+              </Link>
+
+              <Link
                 to="/internship"
                 className="btn-primary text-sm"
               >

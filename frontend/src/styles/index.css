@@ -180,6 +180,16 @@ html[data-theme='light'] .text-gray-500 {
   color: #526071 !important;
 }
 
+/* Light mode modal and hardcoded dark backgrounds */
+html[data-theme='light'] .bg-\[\#0d0d1a\] {
+  background-color: #f1f5f9 !important;
+}
+
+html[data-theme='light'] option {
+  background-color: #f1f5f9 !important;
+  color: #111827 !important;
+}
+
 html[data-theme='light'] .border-white\/5,
 html[data-theme='light'] .border-white\/10,
 html[data-theme='light'] .border-white\/20 {
