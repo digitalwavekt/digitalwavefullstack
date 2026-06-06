@@ -1,8 +1,53 @@
 import { useAuthStore } from '../hooks/useAuthStore'
 
-const API_URL = (import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://digitalwavefullstack.onrender.com'))
+// Get API URL from environment or determine based on hostname
+const getAPIUrl = () => {
+  // First priority: explicit environment variable
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+
+  // If running in browser, check hostname
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname
+    const protocol = window.location.protocol
+
+    // Map frontend domains to API domains
+    const domainMap = {
+      'digitalwaveitsolution.online': 'https://api.digitalwaveitsolution.online',
+      'www.digitalwaveitsolution.online': 'https://api.digitalwaveitsolution.online',
+      'localhost': 'http://localhost:5000',
+      '127.0.0.1': 'http://localhost:5000',
+    }
+
+    // Check if hostname matches any known domain
+    for (const [key, value] of Object.entries(domainMap)) {
+      if (hostname.includes(key)) {
+        return value
+      }
+    }
+
+    // Fallback: use same origin but ensure protocol is https on production
+    const origin = `${protocol}//${hostname}`
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return origin
+    }
+    // For production, try to use api subdomain
+    if (protocol === 'https:') {
+      return 'https://api.digitalwaveitsolution.online'
+    }
+  }
+
+  // Last resort fallback
+  return 'https://api.digitalwaveitsolution.online'
+}
+
+const API_URL = getAPIUrl()
   .replace(/\/+$/, '')
   .replace(/\/api$/, '')
+
+console.log('🌐 API URL:', API_URL) // Debug log
+
 const REQUEST_TIMEOUT_MS = 20000
 
 const safeJsonParse = (value) => {
@@ -46,7 +91,10 @@ export const apiFetch = async (endpoint, options = {}) => {
   }
 
   try {
-    const res = await fetch(`${API_URL}${endpoint}`, {
+    const fullUrl = `${API_URL}${endpoint}`
+    console.log('📡 Fetching:', fullUrl) // Debug log
+
+    const res = await fetch(fullUrl, {
       ...options,
       headers,
       signal: options.signal || controller.signal,
@@ -67,6 +115,7 @@ export const apiFetch = async (endpoint, options = {}) => {
     if (error.name === 'AbortError') {
       throw new Error('Request timeout. Please try again.')
     }
+    console.error('❌ API Error:', error.message) // Debug log
     throw error
   } finally {
     clearTimeout(timeout)
