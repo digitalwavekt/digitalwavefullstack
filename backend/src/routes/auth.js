@@ -183,9 +183,10 @@ router.post('/google', async (req, res) => {
       .maybeSingle()
 
     if (findError) {
+      console.error('Google auth DB read error:', findError)
       return res.status(500).json({
         success: false,
-        message: findError.message,
+        message: 'Failed to verify Google account',
       })
     }
 
@@ -206,9 +207,10 @@ router.post('/google', async (req, res) => {
         .single()
 
       if (createError) {
+        console.error('Google auth DB insert error:', createError)
         return res.status(500).json({
           success: false,
-          message: createError.message,
+          message: 'Failed to create user account',
         })
       }
 
@@ -292,10 +294,17 @@ router.post('/admin-login', async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase()
 
-    if (!normalizedEmail.includes('@')) {
+    if (!normalizedEmail.includes('@') || normalizedEmail.length < 5) {
       return res.status(400).json({
         success: false,
         message: 'Invalid email format',
+      })
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters long',
       })
     }
 
@@ -639,9 +648,10 @@ router.post('/subadmin', adminMiddleware, async (req, res) => {
       .single()
 
     if (error) {
+      console.error('Create sub-admin DB error:', error)
       return res.status(500).json({
         success: false,
-        message: error.message,
+        message: 'Failed to create sub-admin',
       })
     }
 
@@ -671,9 +681,10 @@ router.get('/subadmins', adminMiddleware, async (req, res) => {
       .order('created_at', { ascending: false })
 
     if (error) {
+      console.error('Fetch sub-admins DB error:', error)
       return res.status(500).json({
         success: false,
-        message: error.message,
+        message: 'Failed to fetch sub-admins',
       })
     }
 
@@ -724,9 +735,10 @@ router.put('/subadmin/:id', adminMiddleware, async (req, res) => {
       .single()
 
     if (error) {
+      console.error('Update sub-admin DB error:', error)
       return res.status(500).json({
         success: false,
-        message: error.message,
+        message: 'Failed to update sub-admin',
       })
     }
 
@@ -764,9 +776,10 @@ router.delete('/subadmin/:id', adminMiddleware, async (req, res) => {
       .eq('role', 'subadmin')
 
     if (error) {
+      console.error('Delete sub-admin DB error:', error)
       return res.status(500).json({
         success: false,
-        message: error.message,
+        message: 'Failed to delete sub-admin',
       })
     }
 

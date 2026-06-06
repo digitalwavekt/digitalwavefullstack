@@ -1,6 +1,6 @@
 import { useAuthStore } from '../hooks/useAuthStore'
 
-const API_URL = (import.meta.env.VITE_API_URL || 'https://digitalwavefullstack.onrender.com')
+const API_URL = (import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'https://digitalwavefullstack.onrender.com'))
   .replace(/\/+$/, '')
   .replace(/\/api$/, '')
 const REQUEST_TIMEOUT_MS = 20000
@@ -34,6 +34,7 @@ export const apiFetch = async (endpoint, options = {}) => {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   const headers = {
+    Accept: 'application/json',
     ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {}),
   }

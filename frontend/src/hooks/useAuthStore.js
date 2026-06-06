@@ -19,13 +19,19 @@ export const useAuthStore = create(
 
       setToken: (token) => set({ token }),
 
-      logout: () => set({
-        user: null,
-        token: null,
-        isAdmin: false,
-        isSubAdmin: false,
-        permissions: [],
-      }),
+      logout: () => {
+        localStorage.removeItem('token')
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('studentProjectToken')
+        set({
+          user: null,
+          token: null,
+          isAdmin: false,
+          isSubAdmin: false,
+          permissions: [],
+        })
+      },
 
       hasPermission: (permission) => {
         const state = get()

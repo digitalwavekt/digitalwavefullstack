@@ -200,7 +200,7 @@ router.post('/student-orders/create-payment-order', async (req, res) => {
     console.error('Student create payment order error:', error)
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Failed to create payment order' : error.message,
+      message: 'Failed to create payment order',
     })
   }
 })

@@ -296,7 +296,7 @@ const createDraftHandler = async (req, res) => {
     console.error('Create AI draft error:', error)
     res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === 'production' ? 'Failed to create draft order' : error.message,
+      message: 'Failed to create draft order',
     })
   }
 }

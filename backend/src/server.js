@@ -196,12 +196,17 @@ app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err)
 
   if (err.message && err.message.includes('CORS blocked')) {
-    return res.status(403).json({
+    const response = {
       success: false,
       message: err.message,
-      allowedOrigins: allowedOrigins,
       yourOrigin: req.headers.origin || 'unknown',
-    })
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      response.allowedOrigins = allowedOrigins
+    }
+
+    return res.status(403).json(response)
   }
 
   res.status(err.status || 500).json({

@@ -99,7 +99,7 @@ export default function AboutPreview() {
                 animate={inView ? { opacity: 1, x: 0 } : {}}
                 transition={{ duration: 0.5, delay: index * 0.15 }}
                 whileHover={{ scale: 1.02 }}
-                className={`glass rounded-2xl p-6 border ${value.borderColor} ${value.bgColor} group`}
+                className={`glass rounded-2xl p-6 border ${value.borderColor} group`}
               >
                 <div className="flex items-start gap-4">
                   <div className={`w-12 h-12 rounded-xl ${value.bgColor} border ${value.borderColor} flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>

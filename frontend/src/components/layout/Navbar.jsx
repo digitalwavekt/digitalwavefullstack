@@ -131,22 +131,26 @@ export default function Navbar() {
 
           {user ? (
             <div className="flex items-center gap-3">
-              {isAdmin && (
-                <Link
-                  to="/admin/dashboard"
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple-400 hover:text-purple-300 transition-colors"
-                >
-                  <Shield className="w-4 h-4" />
-                  Admin
-                </Link>
-              )}
+              <span className="hidden sm:inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-sm text-gray-300">
+                <User className="w-4 h-4" />
+                {user.name ? user.name.split(' ')[0] : 'Member'}
+              </span>
 
               <Link
                 to={isAdmin ? '/admin/dashboard' : '/student/dashboard'}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
               >
-                <User className="w-4 h-4" />
-                Dashboard
+                {isAdmin ? (
+                  <>
+                    <Shield className="w-4 h-4" />
+                    Admin Panel
+                  </>
+                ) : (
+                  <>
+                    <User className="w-4 h-4" />
+                    My Dashboard
+                  </>
+                )}
               </Link>
 
               <button
@@ -228,7 +232,7 @@ export default function Navbar() {
                       to={isAdmin ? '/admin/dashboard' : '/student/dashboard'}
                       className="px-4 py-3 text-sm text-gray-300"
                     >
-                      Dashboard
+                      {isAdmin ? 'Admin Panel' : 'My Dashboard'}
                     </Link>
 
                     <button

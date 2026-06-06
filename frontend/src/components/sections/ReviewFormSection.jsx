@@ -96,7 +96,7 @@ export default function ReviewFormSection({ onSubmitted }) {
 
         <button
           type="submit"
-          disabled={submitting || !user}
+          disabled={submitting || !user || comment.trim().length < 10}
           className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
         >
           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

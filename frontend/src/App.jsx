@@ -6,6 +6,7 @@ import Footer from './components/layout/Footer'
 import ScrollToTop from './components/layout/ScrollToTop'
 import LoadingScreen from './components/layout/LoadingScreen'
 import VerifyCertificate from './pages/VerifyCertificate'
+import ErrorBoundary from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
 
 // Lazy load pages for performance
@@ -43,9 +44,10 @@ function App() {
       <ScrollToTop />
       <Navbar />
 
-      <Suspense fallback={<LoadingScreen />}>
-        <AnimatePresence mode="wait">
-          <Routes>
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingScreen />}>
+          <AnimatePresence mode="wait">
+            <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/services" element={<Services />} />
@@ -76,6 +78,7 @@ function App() {
           </Routes>
         </AnimatePresence>
       </Suspense>
+      </ErrorBoundary>
 
       <Footer />
     </div>

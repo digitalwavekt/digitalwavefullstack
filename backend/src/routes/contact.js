@@ -125,11 +125,13 @@ router.get('/', adminAuth, requirePermission('manage_contacts'), async (req, res
       .order('created_at', { ascending: false })
 
     if (error) {
-      return res.status(500).json({ success: false, message: error.message })
+      console.error('Contacts fetch error:', error)
+      return res.status(500).json({ success: false, message: 'Failed to fetch contacts' })
     }
 
     res.json({ success: true, data })
   } catch (error) {
+    console.error('Contacts route error:', error)
     res.status(500).json({ success: false, message: 'Failed to fetch contacts' })
   }
 })
@@ -153,11 +155,13 @@ router.put('/:id', adminAuth, requirePermission('manage_contacts'), async (req, 
       .single()
 
     if (error) {
-      return res.status(500).json({ success: false, message: error.message })
+      console.error('Contact update error:', error)
+      return res.status(500).json({ success: false, message: 'Failed to update contact status' })
     }
 
     res.json({ success: true, message: 'Status updated', data })
   } catch (error) {
+    console.error('Contact update route error:', error)
     res.status(500).json({ success: false, message: 'Update failed' })
   }
 })

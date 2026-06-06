@@ -45,14 +45,18 @@ export default function TestimonialsSection() {
   const [ref, inView] = useInView({ threshold: 0.1, triggerOnce: true })
   const [current, setCurrent] = useState(0)
   const [userReviews, setUserReviews] = useState([])
+  const [loadError, setLoadError] = useState('')
   const { settings } = useSiteSettings()
 
   const loadReviews = async () => {
     try {
       const data = await apiFetch('/api/reviews')
       setUserReviews(data.data || [])
+      setLoadError('')
     } catch (error) {
-      console.error(error)
+      console.error('Failed to load reviews:', error)
+      setLoadError(error?.message || 'Unable to load reviews right now.')
+      setUserReviews([])
     }
   }
 
@@ -111,6 +115,11 @@ export default function TestimonialsSection() {
           <p className="text-gray-400 max-w-2xl mx-auto">
             Real feedback from students and businesses who trusted us with their projects and careers.
           </p>
+          {loadError && (
+            <p className="text-sm text-red-300 mt-4 max-w-2xl mx-auto">
+              {loadError} Showing a fallback testimonial until the reviews API is available.
+            </p>
+          )}
         </motion.div>
 
         <motion.div
